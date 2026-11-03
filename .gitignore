@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.tar.gz
+*.pt
+*.safetensors
+*.log
+*.pid
+weights/
+patch/
+.DS_Store
