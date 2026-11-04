@@ -32,12 +32,15 @@
 
 ---
 
-### 【阶段二】补丁解压与权重融合
+### 【阶段二】获取增量补丁并执行融合
 
-将开发者提供的 `patch.tar.gz`（约 138MB）解压，并执行一键物理融合：
+从项目的 [Releases v1.0.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.0.0) 下载交付的 `patch.tar.gz`（约 128MB），解压并执行一键物理融合：
 
 ```bash
+# 1. 解压交付的 patch.tar.gz 到 patch 目录
 mkdir -p ./patch && tar -xzf patch.tar.gz -C ./patch
+
+# 2. 物理融合成完整独立模型
 python 02_model/merge.py --base ./weights/Qwen3.5-9B --patch ./patch --out ./weights/merged
 ```
 > 融合完成后将生成 `weights/merged` 目录，权重数学叠加完毕，不再依赖 PEFT 动态加载。
