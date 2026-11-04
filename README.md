@@ -32,9 +32,15 @@ style-curator-ai/
 │   └── data/               # 运行时配置数据
 │       └── url_allowlist.conf # SSRF 白名单配置 (热重载)
 │
-└── 04_client_tests/        # 【阶段四：测试验证与本地推理】
-    ├── smoke_test.py       # 生产服务全链路自动化冒烟自检
-    └── predict.py          # 命令行单图/多图本地离线打分工具
+├── 04_client_tests/        # 【阶段四：测试验证与本地推理】
+│   ├── smoke_test.py       # 生产服务全链路自动化冒烟自检
+│   └── predict.py          # 命令行单图/多图本地离线打分工具
+│
+└── 05_training/            # 🎓【阶段五：模型微调与增量后训练】
+    ├── train.py            # 核心训练/后训练脚本 (外部数据集路径指定，支持热启动)
+    ├── dataset.py          # 多模态数据加载器与 8 品牌动态 Prompt
+    ├── prepare_dataset.py  # 自动扫描外部图片文件夹构建 train/val 数据集
+    └── run_train.sh        # 一键训练模板与参数示例
 ```
 
 ---
