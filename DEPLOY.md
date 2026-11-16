@@ -108,7 +108,7 @@ python 04_client_tests/test_int4.py
 ```
 > 实测可将推理峰值显存从 18.8GB 降至 8.59GB，打分判定吻合率达 96.7%。
 
-### 2. 内网图片服务器 SSRF 白名单
+### 3. 内网图片服务器 SSRF 白名单
 若调用方的图片服务器位于内网（如 `192.168.x.x` 或 `internal-images.local`），请编辑 `03_service/data/url_allowlist.conf`：
 ```text
 192.168.1.100
@@ -116,3 +116,20 @@ python 04_client_tests/test_int4.py
 images.company.internal
 ```
 **保存即生效，无需重启服务。**
+
+---
+
+## 🔄 生产环境一键自动更新流水线
+
+当月度增量模型重新训练并发布新 Release 时，运维人员无需手动下载或替换文件，只需在根目录执行一键更新脚本：
+
+```bash
+# 全自动更新：拉取 Git 最新代码 + 检查 GitHub Release 最新权重 + 备份替换 + 重启服务
+./update.sh
+```
+
+**高级选项支持**：
+* `./update.sh --code-only`：仅更新 Git 业务代码，跳过权重下载；
+* `./update.sh --weights-only`：仅检测更新模型权重，跳过 Git 拉取；
+* `./update.sh --tag v1.0.0`：一键回滚或指定安装特定 Release 版本的权重；
+* `./update.sh --force`：强制重新下载并解压权重。

@@ -9,6 +9,7 @@ __pycache__/
 *.pid
 weights/
 patch/
+patch.bak/
 *output*/
 *.jsonl
 .DS_Store
