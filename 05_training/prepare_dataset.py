@@ -40,8 +40,12 @@ def scan_dataset(source_dir: Path, default_brand: str = "LIFE") -> List[Dict[str
             continue
 
         parts = p.relative_to(source_dir).parts
-        # 默认推断标签
-        is_negative = any("反例" in part or "negative" in part.lower() or "bad" in part.lower() for part in parts)
+        # 默认推断正负例标签 (支持 反例 / 不符合 / 不符 / negative / bad)
+        is_negative = any(
+            "反例" in part or "不符合" in part or "不符" in part or
+            "negative" in part.lower() or "bad" in part.lower()
+            for part in parts
+        )
         label = 0 if is_negative else 1
 
         # 尝试推断品牌
@@ -51,11 +55,28 @@ def scan_dataset(source_dir: Path, default_brand: str = "LIFE") -> List[Dict[str
                 brand = b
                 break
 
-        # 尝试推断品类
+        # 尝试推断品类 (支持服装与 7 大配件品类)
         category = "服饰"
-        for cat in ["T恤", "外套", "长裤", "牛仔裤", "裙子", "毛衣", "卫衣", "衬衫", "短裤", "夹克"]:
-            if any(cat in part for part in parts):
-                category = cat
+        cat_candidates = [
+            ("鞋子", ["鞋子", "鞋"]),
+            ("袜子", ["袜子", "袜"]),
+            ("内裤", ["内裤", "內褲"]),
+            ("箱包", ["箱包", "背包", "手提包", "包"]),
+            ("腰带", ["腰带", "腰帶", "皮带"]),
+            ("家居服", ["家居服"]),
+            ("内衣", ["内衣", "內衣", "文胸"]),
+            ("T恤", ["T恤", "t-shirt", "tshirt"]),
+            ("外套", ["外套", "夹克", "jacket", "coat"]),
+            ("长裤", ["长裤", "牛仔裤", "裤子", "pants", "jeans"]),
+            ("裙子", ["裙子", "半身裙", "连衣裙", "skirt", "dress"]),
+            ("毛衣", ["毛衣", "针织衫", "sweater"]),
+            ("卫衣", ["卫衣", "hoodie", "sweatshirt"]),
+            ("衬衫", ["衬衫", "shirt"]),
+            ("短裤", ["短裤", "shorts"])
+        ]
+        for standard_cat, kws in cat_candidates:
+            if any(any(kw in part.lower() for kw in kws) for part in parts):
+                category = standard_cat
                 break
 
         records.append({

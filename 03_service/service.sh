@@ -26,8 +26,9 @@ case "$1" in
     echo "• 监听端口: $PORT"
     echo "• 运行日志: $LOG_FILE"
     cd "$DIR"
-    nohup python3 app.py > "$LOG_FILE" 2>&1 &
+    nohup python3 -u app.py < /dev/null > "$LOG_FILE" 2>&1 &
     PID=$!
+    disown $PID 2>/dev/null || true
     echo $PID > "$PID_FILE"
     sleep 2
     if kill -0 $PID 2>/dev/null; then

@@ -34,7 +34,7 @@
 
 ### 【阶段二】获取增量补丁并执行融合
 
-从项目的 [Releases v1.0.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.0.0) 下载交付的 `patch.tar.gz`（约 128MB），解压并执行一键物理融合：
+从项目的 [Releases v1.1.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.1.0) 下载交付的最新 `patch.tar.gz`（约 128MB，已内置 Step 4004 最终冠军权重），解压并执行一键物理融合：
 
 ```bash
 # 1. 解压交付的 patch.tar.gz 到 patch 目录
@@ -78,8 +78,12 @@ python 04_client_tests/smoke_test.py
 ```text
 ✅ [PASS] 1. 服务连通性检测 (HTTP 200)
 ✅ [PASS] 2. 401 未授权防御拦截
-✅ [PASS] 3. 单图端到端打分接口 (品牌: Z+ | 置信度: 0.999 | 耗时: 45ms)
-✅ [PASS] 4. 异步批量打分与轮询 (状态: completed | 已完成: 2/2)
+✅ [PASS] 3. 三档双阈值配置表接口 (支持 8 品牌 + 7 配件)
+✅ [PASS] 4. 单图成衣端到端三档打分接口 (判定: 绝对符合 | low=0.3, high=0.65)
+✅ [PASS] 5. 单图配件专属三档打分接口 (品类: 鞋子 | 判定: 绝对符合 | low=0.01, high=0.5)
+✅ [PASS] 6. 异步批量打分与轮询 (批处理与三档解析正常)
+✅ [PASS] 7. 未标定新品类安全缓冲保护 (激活保守灰度策略 [0.01, 0.70])
+✅ [PASS] 8. 在线新品类自动标定流程接口 (支持传入样张一键出阈值)
 🎉 自动化冒烟测试执行完毕！
 ```
 
@@ -87,13 +91,22 @@ python 04_client_tests/smoke_test.py
 
 ## ⚙️ 运维配置与通用化说明
 
-### 1. 修改端口与鉴权 Token
+### 1. 修改端口、鉴权 Token 与阈值路径
 复制根目录下 `.env.example` 为 `.env`：
 ```env
 PORT=11451                            # 业务监听端口
 APP_AUTH_TOKEN=your_secure_token_2026 # 客户端 Bearer 认证 Token
 ALLOWLIST_PATH=03_service/data/url_allowlist.conf # SSRF 白名单配置路径
+THRESHOLDS_PATH=03_service/data/thresholds.json   # 8 品牌与 7 配件三档双阈值配置路径
+USE_INT4=false                        # 设为 true 即可在 8G/12G/16G 显卡上以 INT4 模式运行 (峰值显存仅 8.6GB)
 ```
+
+### 2. INT4 极简显存推理自检 (可选)
+如果服务器显存有限（如只有 12GB 或 16GB 显存显卡），可运行 INT4 量化自检工具：
+```bash
+python 04_client_tests/test_int4.py
+```
+> 实测可将推理峰值显存从 18.8GB 降至 8.59GB，打分判定吻合率达 96.7%。
 
 ### 2. 内网图片服务器 SSRF 白名单
 若调用方的图片服务器位于内网（如 `192.168.x.x` 或 `internal-images.local`），请编辑 `03_service/data/url_allowlist.conf`：

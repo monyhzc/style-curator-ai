@@ -30,13 +30,25 @@ from dataset import ClothingStyleDataset, BatchCollateFn
 
 
 class FashionClassifier(nn.Module):
-    """端到端视觉语言分类器架构 (Qwen3.5-9B + LoRA + 4096 标量分类头)"""
-    def __init__(self, base_model_id: str, lora_r: int = 16, lora_alpha: int = 32):
+    """端到端视觉语言分类器架构 (Qwen3.5-9B + LoRA + 4096 标量分类头，支持 QLoRA 4-bit)"""
+    def __init__(self, base_model_id: str, lora_r: int = 16, lora_alpha: int = 32, load_in_4bit: bool = False):
         super().__init__()
+        quant_config = None
+        if load_in_4bit:
+            from transformers import BitsAndBytesConfig
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True
+            )
+            print(f"[Model] 启用 QLoRA 4-bit 显存节约模式 (训练显存仅需约 11~13GB)")
+
         print(f"[Model] 加载多模态基座: {base_model_id}")
         self.backbone = AutoModelForImageTextToText.from_pretrained(
             base_model_id,
             torch_dtype=torch.bfloat16,
+            quantization_config=quant_config,
             device_map="auto"
         )
         self.backbone.gradient_checkpointing_enable()
@@ -141,6 +153,7 @@ def main():
     parser.add_argument("--lr", type=float, default=2e-5, help="学习率 (后训练微调推荐 1e-5 ~ 2e-5)")
     parser.add_argument("--save_steps", type=int, default=100, help="每隔多少步保存并评估一次")
     parser.add_argument("--max_steps", type=int, default=None, help="最大步数 (调试或冒烟测试用)")
+    parser.add_argument("--load_in_4bit", action="store_true", help="是否启用 QLoRA 4-bit 显存节约模式 (训练显存仅需约 11~13GB)")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -174,7 +187,7 @@ def main():
 
     # 2. 模型初始化与热启动权重注入
     print("⏳ [2/4] 初始化网络结构与权重...")
-    model = FashionClassifier(args.base_model)
+    model = FashionClassifier(args.base_model, load_in_4bit=args.load_in_4bit)
 
     if args.resume_from and Path(args.resume_from).exists():
         r_dir = Path(args.resume_from)

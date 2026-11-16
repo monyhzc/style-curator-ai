@@ -96,11 +96,17 @@ class ClothingStyleDataset(Dataset):
             # 异常图片自动回退白底，保证训练不崩
             image = Image.new("RGB", (768, 768), color=(255, 255, 255))
 
-        brand_desc = BRAND_PROMPTS.get(brand, "大众休闲流行风格与质感要求")
-        prompt_text = (
-            f"这是一件【{category}】服饰。请仔细审视其版型廓形、剪裁细节、面料肌理质感与设计印花，"
-            f"结合【{brand}】（{brand_desc}）的核心设计语言，严格审核判断它是否契合该品牌的风格调性要求。"
-        )
+        brand_desc = BRAND_PROMPTS.get(brand, "大众经典休闲、百搭合身版型、简约实用设计")
+        if category in {"鞋子", "袜子", "内裤", "箱包", "腰带", "家居服", "内衣"}:
+            prompt_text = (
+                f"这是一件{category}配件。请仔细审视其外观设计、材质细节、做工质感与视觉风格，"
+                f"结合【真维斯（{brand}）】（{brand_desc}）的核心品牌设计语言，严格审核判断它是否契合该品牌的风格调性要求。"
+            )
+        else:
+            prompt_text = (
+                f"这是一件服饰。请仔细审视其版型廓形、剪裁细节、面料肌理质感与设计印花，"
+                f"结合【{brand}】（{brand_desc}）的核心设计语言，严格审核判断它是否契合该品牌的风格调性要求。"
+            )
 
         messages = [
             {
