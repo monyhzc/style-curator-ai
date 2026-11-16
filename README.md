@@ -46,33 +46,37 @@
 style-curator-ai/
 ├── README.md               # 项目主入口与架构导航
 ├── DEPLOY.md               # 生产部署与国内交付实操指南
+├── update.sh               # 🔄 生产环境一键自动更新流水线 (Git拉取 + Release最新权重热替换 + 重启)
+├── service.sh              # 根目录全局便捷运维控制脚本 (start / stop / restart / status)
 ├── requirements.txt        # 统一运行依赖
-├── .env.example            # 环境变量配置模板
+├── .env.example            # 环境变量配置模板 (支持 USE_INT4 极简显存模式)
 ├── .gitignore              # 规避无用与大文件提交
-├── service.sh              # 根目录全局便捷运维控制脚本
 │
 ├── 01_environment/         # 【阶段一：环境搭建与基座获取】
 │   ├── setup_env.sh        # 国内清华源/GPU环境一键初始化
 │   └── download_model.py   # 魔搭 ModelScope 国内高速 CDN 基座下载
 │
 ├── 02_model/               # 【阶段二：核心模型与权重融合】
-│   ├── core.py             # 风格 Prompt、动态配件适配、三档判别与推理引擎
-│   ├── pack.sh             # 开发者一键提取打包 138MB patch.tar.gz 脚本
-│   └── merge.py            # 客户基座与增量物理融合工具 (merge_and_unload)
+│   ├── core.py             # 风格 Prompt、动态配件适配、INT4量化切换、三档判别与推理引擎
+│   ├── pack.sh             # 开发者一键提取打包 128MB patch.tar.gz 脚本
+│   ├── merge.py            # 客户基座与增量物理融合工具 (merge_and_unload)
+│   └── calibrate_thresholds.py # 在线标定算法核心
 │
 ├── 03_service/             # 【阶段三：生产部署与 API 服务】
-│   ├── app.py              # FastAPI 生产接口 (POST /api/analyze, /batch, GET /thresholds)
+│   ├── app.py              # FastAPI 生产接口 (POST /api/analyze, /batch, GET /thresholds, /calibrate)
 │   ├── service.sh          # 守护进程管理 (start / stop / restart / status)
 │   └── data/               # 运行时配置数据
 │       ├── thresholds.json # 8 品牌与 7 配件双阈值配置文件 (热更新)
 │       └── url_allowlist.conf # SSRF 白名单配置 (热重载)
 │
 ├── 04_client_tests/        # 【阶段四：测试验证与本地推理】
-│   ├── smoke_test.py       # 生产服务全链路自动化 6 项冒烟自检
-│   └── predict.py          # 命令行单图/多图离线打分工具 (支持 --category)
+│   ├── smoke_test.py       # 生产服务全链路自动化 8 项冒烟自检
+│   ├── test_int4.py        # ⚡ INT4 极简显存基准自检 (验证峰值显存 <= 9GB)
+│   ├── predict.py          # 命令行单图/多图离线打分工具 (支持 --category)
+│   └── calibrate_thresholds.py # 客户端新品类/新品牌双阈值自动标定工具
 │
 └── 05_training/            # 🎓【阶段五：模型微调与增量后训练】
-    ├── train.py            # 核心微调脚本 (支持 LoRA 热启动与显存优化)
+    ├── train.py            # 核心微调脚本 (支持 LoRA 热启动与 QLoRA 4-bit 显存优化)
     ├── dataset.py          # 多模态数据加载器 (支持成衣与配件专属 Prompt)
     ├── prepare_dataset.py  # 自动扫描文件夹构建 train/val (支持配件与正反例)
     └── run_train.sh        # 一键训练模板与参数示例
@@ -222,11 +226,53 @@ curl -X POST http://127.0.0.1:11451/api/thresholds/calibrate \
 
 ---
 
-## 📦 客户极简交付流程 (仅需交付 138MB)
+## ⚡ 极简显存与 INT4 量化运行模式 (适配 8G/12G/16G 显卡)
+
+针对显存有限的服务器或消费级显卡（如 RTX 3060 12GB、RTX 4060Ti 16GB、RTX 3090/4090 24GB），系统原生支持 **BitsAndBytes NF4 (Double Quantization)** 运行时动态自动量化，无需单独重新下载大模型文件：
+
+| 运行模式 | 静态模型显存 | 单图推理峰值显存 (Peak) | 决策一致率 | 最低推荐显卡 |
+| :--- | :---: | :---: | :---: | :--- |
+| **标准 BF16 原生精度** | 18.50 GB | 18.82 GB | 100% (基准) | NVIDIA L20 / A100 / A800 / RTX 3090/4090 (24GB+) |
+| **INT4 极简量化模式** | **7.48 GB** | **8.59 GB (-54.4%)** | **96.67%** | **RTX 3060 (12GB) / 4060Ti (16GB) 等** |
+
+### 1. 开启方法
+在根目录 `.env` 中配置：
+```env
+USE_INT4=true
+```
+服务启动加载模型时，框架自动在内存中动态将 16-bit 权重转为 4-bit 进显存，兼顾极高精度与显存压缩。
+
+### 2. INT4 显存与精度自检
+```bash
+python 04_client_tests/test_int4.py
+```
+
+---
+
+## 🔄 生产环境一键自动更新流水线 (update.sh)
+
+为保证代码与大体积模型权重解耦持续交付（Code-Weight Decoupled CD），运维人员无需手动登录下载替换，执行根目录下的一键更新脚本即可全自动升级：
+
+```bash
+# 全自动更新：Git代码拉取 + 检查 GitHub Release 最新权重 + 备份热替换 + 优雅重启服务
+./update.sh
+```
+
+- **增量幂等检测**：通过 `patch/.version` 自动对比版本，若已是最新版本则跳过 128MB 下载，2 秒极速退出；
+- **自动安全备份**：更新前自动备份原权重至 `patch.bak/`，随时可安全回滚；
+- **常用参数说明**：
+  * `./update.sh --code-only`：仅更新 Git 代码与配置，不重新下载权重；
+  * `./update.sh --weights-only`：仅检测更新模型权重，跳过 Git 拉取；
+  * `./update.sh --tag v1.0.0`：一键回滚或指定安装特定 Release 版本的权重；
+  * `./update.sh --force`：强制重新下载并解压覆盖权重。
+
+---
+
+## 📦 客户极简交付流程 (GitHub Releases v1.1.0)
 
 详见完整部署指南 👉 [DEPLOY.md](DEPLOY.md)。
-- **开发者**：运行 `./02_model/pack.sh <权重路径>` 生成 `patch.tar.gz`（约 138MB）交付给客户。
-- **客户方**：
-  1. 下载官方原版基座：`python 01_environment/download_model.py`
-  2. 解压补丁并物理融合：`python 02_model/merge.py --base ./weights/Qwen3.5-9B --patch ./patch --out ./weights/merged`
-  3. 启动服务：`./service.sh start`
+- **最新 Release 页面**：[GitHub Releases v1.1.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.1.0)
+- **核心交付附件**：[`patch.tar.gz`](https://github.com/monyhzc/style-curator-ai/releases/download/v1.1.0/patch.tar.gz)（约 128MB）
+  * 内置 **Step 4004 最终冠军模型权重**（MD5: `cb0b44251218ac80774288615564a20a`）；
+  * 包含 `lora_weights/` 与 `classifier_head.pt`。
+- **一键部署/升级**：生产环境执行 `./update.sh` 即可全自动拉取最新代码并热部署该权重补丁。
