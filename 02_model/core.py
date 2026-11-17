@@ -221,8 +221,18 @@ class StyleEngine:
     _instance = None
 
     @classmethod
-    def get_instance(cls, base_model: str = "Qwen/Qwen3.5-9B", patch_dir: Optional[str] = None, load_in_4bit: Optional[bool] = None):
+    def get_instance(cls, base_model: Optional[str] = None, patch_dir: Optional[str] = None, load_in_4bit: Optional[bool] = None):
         if cls._instance is None:
+            if base_model is None:
+                env_base = os.environ.get("BASE_MODEL")
+                if env_base:
+                    base_model = env_base
+                elif Path("./weights/merged").exists():
+                    base_model = "./weights/merged"
+                elif Path("./weights/Qwen3.5-9B").exists():
+                    base_model = "./weights/Qwen3.5-9B"
+                else:
+                    base_model = "Qwen/Qwen3.5-9B"
             if load_in_4bit is None:
                 load_in_4bit = os.environ.get("USE_INT4", "false").lower() in ("1", "true", "yes")
             cls._instance = cls(base_model, patch_dir, load_in_4bit=load_in_4bit)
@@ -244,6 +254,8 @@ class StyleEngine:
 
         lora_path = self.patch_dir / "lora_weights"
         head_path = self.patch_dir / "classifier_head.pt"
+        if not head_path.exists() and (Path(base_model) / "classifier_head.pt").exists():
+            head_path = Path(base_model) / "classifier_head.pt"
 
         if lora_path.exists():
             print(f"[Model] 挂载 LoRA 权重: {lora_path}")

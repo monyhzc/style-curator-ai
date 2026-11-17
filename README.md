@@ -1,121 +1,221 @@
-# Style Curator AI (真维斯服装与配件选款/风格审核大模型)
+# Style Curator AI (真維斯服裝與配件選款/風格審核大模型)
 
-基于 **Qwen3.5-9B 多模态基座 + Vision LoRA 视觉解冻微调 + 4096 标量分类头** 的风格智能审核与自动选款系统。
-全量支持 **8 大子品牌** 及 **7 大配件品类** 端到端直接打分，并深度内置旭日集团业务要求的**三档判定双套阈值体系**。
+[![GitHub Release](https://img.shields.io/github/v/release/monyhzc/style-curator-ai?color=blue&label=%E7%89%88%E6%9C%AC)](https://github.com/monyhzc/style-curator-ai/releases)
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![CUDA](https://img.shields.io/badge/CUDA-11.8%20%7C%2012.1%2B-orange.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![INT4 NF4](https://img.shields.io/badge/Quantization-INT4%20NF4%20(8.5GB)-purple.svg)](https://github.com/TimDettmers/bitsandbytes)
 
----
-
-## 🎯 业务特性：旭日集团三档审图双阈值机制
-
-针对成衣与配件审图标的，系统为每个品牌和品类设定 `[threshold_low, threshold_high]` 双套阈值，提供自动化分流与人工协同机制：
-
-| 判定档位 | 判定条件 | 业务动作 | 核心目标 |
-| :--- | :---: | :---: | :--- |
-| **绝对符合 (`pass`)** | $\text{score} \ge \tau_{\text{high}}$ | **自动免审放行** | **极高 Precision**：放行纯净度达 98%~100%，杜绝劣质款式漏网 |
-| **中度符合 (`review`)** | $\tau_{\text{low}} \le \text{score} < \tau_{\text{high}}$ | **提示人工介入审图** | **灰度缓冲**：针对视觉语义偏离或争议款式，由业务员复核兜底 |
-| **绝对不符合 (`reject`)** | $\text{score} < \tau_{\text{low}}$ | **自动拦截驳回** | **极高 Specificity / Recall**：拦截线卡在极低分，绝不误杀优质款式 |
-
-### 1. 8 大子品牌双阈值表
-| 子品牌 (Brand) | `threshold_low` (拦截线) | `threshold_high` (放行线) | 风格调性 |
-| :--- | :---: | :---: | :--- |
-| **JEANS** | **0.15** | **0.60** | 街头潮流、美式复古、重工水洗牛仔、宽松廓形、字母涂鸦与工装解构 |
-| **JKIDS** | **0.20** | **0.65** | 童趣时尚、舒适亲肤、活泼明快色彩、精致微缩印花与儿童合体剪裁 |
-| **JNR** | **0.30** | **0.75** | 青少年青春活力、轻运动街头、多元拼色、适度宽松潮童版型 |
-| **JSPORT** | **0.05** | **0.50** | 专业运动机能、吸湿速干透气面料、流线拼块剪裁、反光条与科技运动质感 |
-| **LIFE** | **0.25** | **0.65** | 都市商务通勤与质感生活、极简克制、利落剪裁、高阶质感与优雅沉稳 |
-| **MAIN** | **0.35** | **0.75** | 大众经典休闲、百搭合身版型、简约实用设计、品质耐穿与主流商业审美 |
-| **OUTDOOR** | **0.30** | **0.80** | 山系硬核户外、三防科技面料（防水/防风/抗撕裂）、多口袋工装露营风 |
-| **Z+** | **0.30** | **0.65** | 先锋街头潮流、暗黑解构剪裁、质感重工五金、极具辨识度的前卫设计语言 |
-
-### 2. 7 大配件品类双阈值表
-| 配件品类 (Category) | `threshold_low` (拦截线) | `threshold_high` (放行线) | 业务处理逻辑 |
-| :--- | :---: | :---: | :--- |
-| **鞋子** | **0.010** | **0.500** | 视觉辨识显著，`≥0.50` 全自动放行，`<0.01` 自动拦截 |
-| **袜子** | **0.020** | **0.500** | 正例特征明显，双端纯净，`0.02~0.50` 提示人工复核 |
-| **家居服** | **0.005** | **0.500** | 宽松起居服饰，`≥0.50` 高精度免审放行 |
-| **箱包** | **0.001** | **0.500** | 非服装廓形语义偏移，低分段由人工介入缓冲 |
-| **腰带** | **0.001** | **0.400** | 线状配饰，放行线适度优化至 0.40 |
-| **内裤** | **0.001** | **0.500** | 贴身轻薄件，中间段平滑接入人工复查 |
-| **内衣** | **0.0005** | **0.150** | **特殊少布料保护**：`≥0.15` 即自动通过，`0.0005~0.15` 提示人工 |
+基於 **Qwen3.5-9B 多模態基座 + Vision LoRA 視覺解凍微調 + 4096 標量分類頭** 的風格智慧審核與自動選款系統。  
+全量支援 **8 大子品牌** 及 **7 大配件品類** 端到端直接打分，並深度內建旭日集團業務要求的**三檔判定雙套閾值體系**。
 
 ---
 
-## 📁 阶段分层工程架构
+## ⚡【極速一鍵部署】(客戶 5 分鐘自動化上線指南)
+
+為了讓您的團隊與客戶以最短時間完成部署，本專案提供**全自動一鍵化部署腳本 (`quick_deploy.sh`)**。  
+您只需在伺服器上執行以下**兩行命令**，腳本將自動完成全部前置作業：
+
+```bash
+# 1. 克隆 GitHub 倉庫代碼
+git clone https://github.com/monyhzc/style-curator-ai.git
+cd style-curator-ai
+
+# 2. 執行極速一鍵部署流水線 (全自動配置、下載、拼接與 INT4 推理)
+bash quick_deploy.sh
+```
+
+### 🤖 一鍵部署腳本自動執行的 6 大工序：
+
+```text
+[步驟 1/6] 系統環境自檢 ──> 自動配置清華 PyPI 高速映象源，秒級安裝 PyTorch / Transformers / BitsAndBytes
+[步驟 2/6] 基座模型獲取 ──> 透過阿里魔搭 (ModelScope) 國內高速 CDN 下載 Qwen3.5-9B (避開海外 HuggingFace 限制)
+[步驟 3/6] 拉取 Release ──> 自動查詢 GitHub API，拉取最新發布的 patch.tar.gz (128MB 冠軍權重) 並解壓校驗
+[步驟 4/6] 拼接物理模型 ──> 自動呼叫 merge.py 執行 merge_and_unload，將 LoRA 與基座物理疊加成 weights/merged
+[步驟 5/6] 啟用 INT4 量化 ──> 自動寫入 .env 配置 USE_INT4=true，啟用 NF4 雙重量化 (顯存直降 54.4% 至 <= 8.59GB)
+[步驟 6/6] 服務啟動與自檢 ──> 啟動後台守護進程 (端口 11451)，自動執行首張圖片 INT4 冒煙打分推理驗證
+```
+
+> 💡 **硬體門檻極低**：在啟用 **INT4 雙重量化** 模式後，單圖推理峰值顯存僅需 **約 8.59 GB**，無論是資料中心 GPU（L20, A10, A100, V100）還是消費級主流顯卡（**RTX 3060 12GB、RTX 4060Ti 16GB、RTX 3090/4090**），均可流暢高併發運行！
+
+---
+
+### 🛠️ 分步手動部署指引 (如需客製化分步執行)
+
+若您的運維團隊偏好手動逐步掌控每個環節，可依序執行以下 4 個標準指令：
+
+#### 步驟 1：配置環境依賴
+```bash
+# 配置國內清華映象源並安裝完整運行庫
+bash 01_environment/setup_env.sh
+```
+
+#### 步驟 2：高速下載基座模型
+```bash
+# 透過魔搭社區高速 CDN 直連下載 (2~5 分鐘完成)
+python3 01_environment/download_model.py --model Qwen/Qwen3.5-9B --local_dir ./weights/Qwen3.5-9B
+```
+
+#### 步驟 3：拉取最新 Release 附件並物理拼接模型
+```bash
+# 拉取最新 Release 權重補丁 (約 128MB)
+bash update.sh --weights-only --no-restart
+
+# 將基座與增量 LoRA 權重物理融合成獨立完整模型
+python3 02_model/merge.py --base ./weights/Qwen3.5-9B --patch ./patch --out ./weights/merged
+```
+
+#### 步驟 4：啟用 INT4 量化並啟動服務
+```bash
+# 配置啟用 INT4 極簡顯存模式與融合權重路徑
+cp .env.example .env
+sed -i 's/^USE_INT4=.*/USE_INT4=true/' .env
+sed -i 's|^BASE_MODEL=.*|BASE_MODEL=./weights/merged|' .env
+
+# 啟動後台守護進程 (預設端口 11451)
+./service.sh start
+
+# 執行 INT4 顯存與推理自檢
+python3 04_client_tests/test_int4.py
+```
+
+---
+
+## 🎯 業務特性：旭日集團三檔審圖雙閾值機制
+
+針對成衣與配件審圖標的，系統為每個品牌和品類設定 `[threshold_low, threshold_high]` 雙套閾值，提供自動化分流與人工協同機制：
+
+| 判定檔位 | 判定條件 | 業務動作 | 核心目標 |
+| :--- | :---: | :---: | :--- |
+| **絕對符合 (`pass`)** | $\text{score} \ge \tau_{\text{high}}$ | **自動免審放行** | **極高 Precision**：放行純淨度達 98%~100%，杜絕劣質款式漏網 |
+| **中度符合 (`review`)** | $\tau_{\text{low}} \le \text{score} < \tau_{\text{high}}$ | **提示人工介入審圖** | **灰度緩衝**：針對視覺語意偏離或爭議款式，由審圖員覆核兜底 |
+| **絕對不符合 (`reject`)** | $\text{score} < \tau_{\text{low}}$ | **自動攔截駁回** | **極高 Specificity / Recall**：攔截線卡在極低分，絕不誤殺優質款式 |
+
+### 1. 8 大子品牌雙閾值表
+| 子品牌 (Brand) | `threshold_low` (攔截線) | `threshold_high` (放行線) | 風格調性定義 |
+| :--- | :---: | :---: | :--- |
+| **JEANS** | **0.15** | **0.60** | 街頭潮流、美式復古、重工水洗牛仔、寬鬆廓形、字母塗鴉與工裝解構 |
+| **JKIDS** | **0.20** | **0.65** | 童趣時尚、舒適親膚、活潑明快色彩、精緻微縮印花圖案與兒童合體剪裁 |
+| **JNR** | **0.30** | **0.75** | 青少年青春活力、輕運動街頭、多元拼色、適度寬鬆潮童版型 |
+| **JSPORT** | **0.05** | **0.50** | 專業運動機能、吸濕速乾透氣面料、流線拼塊剪裁、反光條與科技運動質感 |
+| **LIFE** | **0.25** | **0.65** | 都市商務通勤與質感生活、極簡克制、俐落剪裁、高階質感與優雅沉穩調性 |
+| **MAIN** | **0.35** | **0.75** | 大眾經典休閒、百搭合身版型、簡約實用設計、品質耐穿與主流商業審美 |
+| **OUTDOOR** | **0.30** | **0.80** | 山系硬核戶外、三防科技面料（防水/防風/抗撕裂）、多口袋工裝機能露營風 |
+| **Z+** | **0.30** | **0.65** | 先鋒街頭潮流、暗黑解構剪裁、質感重工五金、極具辨識度的前衛設計語言 |
+
+### 2. 7 大配件品類雙閾值表
+| 配件品類 (Category) | `threshold_low` (攔截線) | `threshold_high` (放行線) | 業務處理邏輯 |
+| :--- | :---: | :---: | :--- |
+| **鞋子** | **0.010** | **0.500** | 視覺特徵辨識顯著，`≥0.50` 全自動免審放行，`<0.01` 自動攔截 |
+| **襪子** | **0.020** | **0.500** | 正例特徵明顯，雙端純淨度高，`0.02~0.50` 提示人工覆核 |
+| **家居服** | **0.005** | **0.500** | 寬鬆起居服飾，`≥0.50` 高精度放行 |
+| **箱包** | **0.001** | **0.500** | 非服裝廓形語意偏移，低分段由人工介入緩衝 |
+| **腰帶** | **0.001** | **0.400** | 線狀配飾特徵細小，放行線適度優化至 0.40 |
+| **內褲** | **0.001** | **0.500** | 貼身輕薄件，中間段平滑接入人工覆查 |
+| **內衣** | **0.0005** | **0.150** | **特殊少布料保護**：`≥0.15` 即自動通過，`0.0005~0.15` 提示人工 |
+
+---
+
+## 📁 階段分層工程架構
 
 ```text
 style-curator-ai/
-├── README.md               # 项目主入口与架构导航
-├── DEPLOY.md               # 生产部署与国内交付实操指南
-├── update.sh               # 🔄 生产环境一键自动更新流水线 (Git拉取 + Release最新权重热替换 + 重启)
-├── service.sh              # 根目录全局便捷运维控制脚本 (start / stop / restart / status)
-├── requirements.txt        # 统一运行依赖
-├── .env.example            # 环境变量配置模板 (支持 USE_INT4 极简显存模式)
-├── .gitignore              # 规避无用与大文件提交
+├── quick_deploy.sh         # ⚡【全自動一鍵部署】環境配置 + 下載 + 補丁 + 拼接 + INT4 推理自檢
+├── update.sh               # 🔄 生產環境一鍵熱更新流水線 (Git 代碼拉取 + Release 最新權重熱替換 + 重啟)
+├── service.sh              # 根目錄全域便捷維運控制腳本 (start / stop / restart / status)
+├── requirements.txt        # 統一核心依賴清單
+├── .env.example            # 環境變數設定範本 (支援 USE_INT4 雙重量化模式)
+├── .gitignore              # 規避無用快取與大體積模型提交
 │
-├── 01_environment/         # 【阶段一：环境搭建与基座获取】
-│   ├── setup_env.sh        # 国内清华源/GPU环境一键初始化
-│   └── download_model.py   # 魔搭 ModelScope 国内高速 CDN 基座下载
+├── 01_environment/         # 【階段一：環境搭建與基座獲取】
+│   ├── setup_env.sh        # 國內清華映象源 / GPU 運行庫一鍵初始化
+│   └── download_model.py   # 魔搭社區 (ModelScope) 國內高速 CDN 基座下載腳本
 │
-├── 02_model/               # 【阶段二：核心模型与权重融合】
-│   ├── core.py             # 风格 Prompt、动态配件适配、INT4量化切换、三档判别与推理引擎
-│   ├── pack.sh             # 开发者一键提取打包 128MB patch.tar.gz 脚本
-│   ├── merge.py            # 客户基座与增量物理融合工具 (merge_and_unload)
-│   └── calibrate_thresholds.py # 在线标定算法核心
+├── 02_model/               # 【階段二：核心模型與權重融合】
+│   ├── core.py             # 核心模型、動態配件適配、INT4 NF4 雙重量化切換、三檔判別與推理引擎
+│   ├── pack.sh             # 開發者一鍵提取打包 128MB patch.tar.gz 腳本
+│   ├── merge.py            # 基座與增量 LoRA 權重物理融合工具 (merge_and_unload)
+│   └── calibrate_thresholds.py # 在線標定演算法核心
 │
-├── 03_service/             # 【阶段三：生产部署与 API 服务】
-│   ├── app.py              # FastAPI 生产接口 (POST /api/analyze, /batch, GET /thresholds, /calibrate)
-│   ├── service.sh          # 守护进程管理 (start / stop / restart / status)
-│   └── data/               # 运行时配置数据
-│       ├── thresholds.json # 8 品牌与 7 配件双阈值配置文件 (热更新)
-│       └── url_allowlist.conf # SSRF 白名单配置 (热重载)
+├── 03_service/             # 【階段三：生產部署與 API 服務】
+│   ├── app.py              # FastAPI 生產介面 (POST /api/analyze, /batch, GET /thresholds, /calibrate)
+│   ├── service.sh          # 守護進程管理工具 (start / stop / restart / status)
+│   └── data/               # 運行時動態配置資料
+│       ├── thresholds.json # 8 品牌與 7 配件雙閾值設定檔 (支援秒級熱載入)
+│       └── url_allowlist.conf # SSRF 白名單設定檔 (支援動態熱重載)
 │
-├── 04_client_tests/        # 【阶段四：测试验证与本地推理】
-│   ├── smoke_test.py       # 生产服务全链路自动化 8 项冒烟自检
-│   ├── test_int4.py        # ⚡ INT4 极简显存基准自检 (验证峰值显存 <= 9GB)
-│   ├── predict.py          # 命令行单图/多图离线打分工具 (支持 --category)
-│   └── calibrate_thresholds.py # 客户端新品类/新品牌双阈值自动标定工具
+├── 04_client_tests/        # 【階段四：測試驗證與本地推理】
+│   ├── smoke_test.py       # 生產服務全鏈路自動化 8 項冒煙自檢
+│   ├── test_int4.py        # ⚡ INT4 雙重量化顯存與精度自檢 (驗證峰值顯存 <= 9GB)
+│   ├── predict.py          # 命令行單圖 / 批量本地離線打分工具 (支援 --category)
+│   └── calibrate_thresholds.py # 客戶端新品類 / 新品牌雙閾值自動標定工具
 │
-└── 05_training/            # 🎓【阶段五：模型微调与增量后训练】
-    ├── train.py            # 核心微调脚本 (支持 LoRA 热启动与 QLoRA 4-bit 显存优化)
-    ├── dataset.py          # 多模态数据加载器 (支持成衣与配件专属 Prompt)
-    ├── prepare_dataset.py  # 自动扫描文件夹构建 train/val (支持配件与正反例)
-    └── run_train.sh        # 一键训练模板与参数示例
+└── 05_training/            # 🎓【階段五：模型微調與增量後訓練】
+    ├── train.py            # 核心微調腳本 (支援 LoRA 熱啟動與 QLoRA 4-bit 顯存優化)
+    ├── dataset.py          # 多模態資料載入器 (支援成衣與配件專屬 Prompt 構造)
+    ├── prepare_dataset.py  # 自動掃描資料夾建構 train/val (支援正負例分流)
+    └── run_train.sh        # 一鍵微調訓練範本與參數範例
 ```
 
 ---
 
-## 🚀 极简运维与 API 规范
+## ⚡ 顯存規格與 INT4 雙重量化模式對比
 
-### 1. 一键启动 HTTP API 服务 (默认端口 11451)
+針對顯存有限的生產伺服器或消費級顯卡（如 RTX 3060 12GB、RTX 4060Ti 16GB、RTX 3090/4090 24GB），系統原生支援 **BitsAndBytes NF4 (Double Quantization)** 運行時動態自動量化，無需單獨重新下載數十 GB 的量化模型：
+
+| 運行模式 | 靜態模型顯存 | 單圖推理峰值顯存 (Peak) | 決策一致率 | 最低硬體相容建議 |
+| :--- | :---: | :---: | :---: | :--- |
+| **標準 BF16 原生精度** | 18.50 GB | 18.82 GB | 100% (基準) | NVIDIA L20 / A100 / A800 / RTX 3090/4090 (24GB+) |
+| **INT4 雙重量化模式** | **7.48 GB** | **8.59 GB (-54.4%)** | **96.67%** | **RTX 3060 (12GB) / 4060Ti (16GB) / 4070 (12GB) 等** |
+
+### 啟用方法
+在根目錄 `.env` 中設定：
+```env
+USE_INT4=true
+```
+服務啟動載入模型時，框架將在顯卡中動態以 NF4 格式存放權重，兼顧高精度與超低顯存消耗。
+
+### INT4 顯存與精度獨立檢測
 ```bash
-./service.sh start
-# 查看状态: ./service.sh status
-# 查看日志: tail -f 03_service/service.log
+python3 04_client_tests/test_int4.py
 ```
 
-### 2. API 接口说明
+---
 
-#### (1) 单图风格分析：`POST /api/analyze`
-**入参 (JSON)**：
+## 🚀 常用維運控制與 API 介面規範
+
+### 1. 服務控制命令 (預設監聽端口 11451)
+```bash
+./service.sh start    # 啟動後台服務
+./service.sh status   # 檢查服務運行狀態與端口監聽
+./service.sh restart  # 重啟服務
+./service.sh stop     # 停止服務
+tail -f 03_service/service.log  # 查看實時運維日誌
+```
+
+### 2. API 介面規格說明
+
+#### (1) 單圖風格分析：`POST /api/analyze`
+**請求入參 (JSON)**：
 ```json
 {
-  "image_url": "https://example.com/shoe.jpg",
+  "image_url": "https://example.com/sample_shoe.jpg",
   "task": "MAIN",
   "category": "鞋子"
 }
 ```
-> `task`: 目标品牌（默认 `LIFE`，支持 `LIFE`, `OUTDOOR`, `Z+`, `MAIN`, `JEANS`, `JNR`, `JKIDS`, `JSPORT`）  
-> `category`: 可选配件品类（`鞋子`, `袜子`, `内裤`, `箱包`, `腰带`, `家居服`, `内衣`），留空默认按成衣处理。
+> `task`: 目標子品牌（預設 `LIFE`，支援 `LIFE`, `OUTDOOR`, `Z+`, `MAIN`, `JEANS`, `JNR`, `JKIDS`, `JSPORT`）  
+> `category`: 可選配件品類（`鞋子`, `襪子`, `內褲`, `箱包`, `腰帶`, `家居服`, `內衣`），留空預設依成衣處理。
 
-**返回 (JSON)**：
+**響應返回 (JSON)**：
 ```json
 {
-  "url": "https://example.com/shoe.jpg",
+  "url": "https://example.com/sample_shoe.jpg",
   "brand": "MAIN",
   "category": "鞋子",
   "probability": 0.8523,
   "decision": "pass",
-  "level": "绝对符合",
+  "level": "絕對符合",
   "level_code": 2,
   "manual_review_needed": false,
   "thresholds_used": {
@@ -125,8 +225,8 @@ style-curator-ai/
 }
 ```
 
-#### (2) 批量任务提交：`POST /api/analyze/batch`
-**入参 (JSON)**：
+#### (2) 批量任務提交：`POST /api/analyze/batch`
+**請求入參 (JSON)**：
 ```json
 {
   "urls": ["https://.../img1.jpg", "https://.../img2.jpg"],
@@ -135,144 +235,100 @@ style-curator-ai/
 }
 ```
 
-#### (3) 获取当前三档双阈值配置表：`GET /api/thresholds`
-返回 8 大子品牌与 7 大配件品类的当前有效双阈值清单及规则定义。
+#### (3) 查詢當前三檔雙閾值配置表：`GET /api/thresholds`
+返回 8 大子品牌與 7 大配件品類目前生效的雙閾值清單與決策規則。
 
 ---
 
-### 3. 自动化冒烟健康自检
+### 3. 全鏈路自動化冒煙自檢
 ```bash
-python 04_client_tests/smoke_test.py
+python3 04_client_tests/smoke_test.py
 ```
-**自检输出**：
+**期望輸出結果**：
 ```text
-✅ [PASS] 1. 服务连通性检测 (HTTP 200)
-✅ [PASS] 2. 401 未授权防御拦截
-✅ [PASS] 3. 三档双阈值配置表接口 (支持 8 品牌 + 7 配件)
-✅ [PASS] 4. 单图成衣端到端三档打分接口 (判定: 绝对符合 | low=0.3, high=0.65)
-✅ [PASS] 5. 单图配件专属三档打分接口 (品类: 鞋子 | 判定: 绝对符合 | low=0.01, high=0.5)
-✅ [PASS] 6. 异步批量打分与轮询 (批处理与三档解析正常)
+✅ [PASS] 1. 服務連通性檢測 (HTTP 200)
+✅ [PASS] 2. 401 未授權防禦攔截
+✅ [PASS] 3. 三檔雙閾值配置表介面 (支援 8 品牌 + 7 配件)
+✅ [PASS] 4. 單圖成衣端到端三檔打分介面 (判定: 絕對符合 | low=0.3, high=0.65)
+✅ [PASS] 5. 單圖配件專屬三檔打分介面 (品類: 鞋子 | 判定: 絕對符合 | low=0.01, high=0.5)
+✅ [PASS] 6. 異步批量打分與輪詢 (批處理與三檔解析正常)
+✅ [PASS] 7. 未標定新品類安全緩衝保護 (激活保守灰度策略 [0.01, 0.70])
+✅ [PASS] 8. 在線新品類自動標定流程介面 (支援傳入樣張一鍵出閾值)
+🎉 自動化冒煙測試執行完畢！
 ```
 
 ---
 
-### 4. 命令行本地离线快速打分
+### 4. 命令行本地離線快速打分 (CLI)
 ```bash
-# 单图成衣打分
-python 04_client_tests/predict.py --image sample_tshirt.jpg --brand Z+
+# 1. 單張成衣圖片打分
+python3 04_client_tests/predict.py --image sample_tshirt.jpg --brand Z+
 
-# 单图配件打分 (指定品类)
-python 04_client_tests/predict.py --image sample_shoe.jpg --brand MAIN --category 鞋子
+# 2. 單張配件圖片打分 (指定品類)
+python3 04_client_tests/predict.py --image sample_shoe.jpg --brand MAIN --category 鞋子
 
-# 文件夹批量评测
-python 04_client_tests/predict.py --dir ./my_shoes/ --brand MAIN --category 鞋子
+# 3. 本地資料夾批量評測
+python3 04_client_tests/predict.py --dir ./my_shoes/ --brand MAIN --category 鞋子
 ```
 
-**控制台输出示例**：
+**終端機打分輸出範例**：
 ```text
-[Z+] [成衣] sample_tshirt.jpg -> 得分: 0.4230 | 判定: 中度符合 (REVIEW) [⚠️ 提示人工介入复审] | 双阈值: [low=0.3, high=0.65]
-[MAIN] [鞋子] sample_shoe.jpg -> 得分: 0.8920 | 判定: 绝对符合 (PASS) | 双阈值: [low=0.01, high=0.5]
+[Z+] [成衣] sample_tshirt.jpg -> 得分: 0.4230 | 判定: 中度符合 (REVIEW) [⚠️ 提示人工介入覆審] | 雙閾值: [low=0.3, high=0.65]
+[MAIN] [鞋子] sample_shoe.jpg -> 得分: 0.8920 | 判定: 絕對符合 (PASS) | 雙閾值: [low=0.01, high=0.5]
 ```
 
 ---
 
-### 5. 新品类/新品牌三档双阈值自动标定流程 (Auto-Calibration)
+## 🎯 新品類/新品牌三檔雙閾值自動標定流程 (Auto-Calibration)
 
-当业务方后续拓展**全新配件品类**（如：帽子、围巾、手表、手套、首饰）或**新子品牌**时，系统提供两种自动化标定适配路径，无需重新训练模型权重：
+當業務後續拓展**全新配件品類**（如：帽子、圍巾、手錶、手套、首飾）或**新子品牌**時，系統提供自動化標定工具，**無需重新微調訓練模型權重**：
 
-#### 方式 A：命令行一键自动标定与持久化 (推荐)
-只需准备少量该品类的正例与负例图片（建议各 20~50 张），直接运行标定工具：
+### 命令行一鍵自動標定與持久化
+準備少量該品類的正例與負例圖片（建議各 20~50 張）：
 ```bash
-# 自动扫描目录 (子目录包含“符合/不符合”或“正例/反例”)
-python 04_client_tests/calibrate_thresholds.py \
+# 自動掃描目錄 (子目錄包含「符合/不符合」或「正例/反例」)
+python3 04_client_tests/calibrate_thresholds.py \
   --category 帽子 \
   --dir /path/to/hats_data \
   --brand MAIN \
   --update_config
-
-# 或者分别指定正负例文件夹
-python 04_client_tests/calibrate_thresholds.py \
-  --category 围巾 \
-  --pos_dir /path/to/pos_scarf \
-  --neg_dir /path/to/neg_scarf \
-  --brand MAIN \
-  --update_config
 ```
-**标定过程自动执行**：
-1. 模型端到端打分并分析正负样本概率分布；
-2. 按照目标指标（Recall $\ge 96\%$、Precision $\ge 96\%$）搜索最优 `[low, high]`；
-3. 打印放行纯度、拦截纯度与人工介入率指标；
-4. 自动持久化写入 `03_service/data/thresholds.json`，线上服务与 CLI 工具**秒级自动适配新品类，无需重启服务**！
+**自動化標定特點**：
+1. 模型端到端批量打分並統計正負樣本的機率密度分布；
+2. 根據目標目標（Recall $\ge 96\%$、Precision $\ge 96\%$）自動計算最優 `[low, high]`；
+3. 自動持久化寫入 `03_service/data/thresholds.json`，線上 API 服務**秒級熱加載，無需重啟**！
 
-#### 方式 B：通过 HTTP API 在线自动标定
-审图管理后台可直接调用在线标定接口：
-```bash
-curl -X POST http://127.0.0.1:11451/api/thresholds/calibrate \
-  -H "Authorization: Bearer jw_style_audit_prod_token_2026" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "category": "帽子",
-    "brand": "MAIN",
-    "pos_urls": ["https://.../hat_pos1.jpg", "https://.../hat_pos2.jpg"],
-    "neg_urls": ["https://.../hat_neg1.jpg", "https://.../hat_neg2.jpg"],
-    "auto_save": true
-  }'
-```
-
-#### 🛡️ 智能安全缓冲机制 (Fallback)
-若调用方提交了尚未标定过的全新配件名（如未配置的“发饰”），系统将**自动激活保守灰度缓冲策略**：
-- 采用保守双阈值 `[low: 0.01, high: 0.70]`，自动放大人工审核区间；
-- 接口返回 `"calibrated": false` 及引导标定通知，确保在补全标定数据前**绝不误杀好款式、绝不漏放劣质品**。
+#### 🛡️ 智慧安全緩衝機制 (Fallback)
+若呼叫方傳入了尚未標定過的全新配件名稱（如未設定的「髮飾」），系統將**自動啟動保守灰度緩衝策略**：
+- 自動套用保守雙閾值 `[low: 0.01, high: 0.70]`，主動擴大人工審核區間；
+- 響應返回 `"calibrated": false` 及引導標定提示，確保在補全標定數據前**絕不誤殺好款式、絕不漏放劣質品**。
 
 ---
 
-## ⚡ 极简显存与 INT4 量化运行模式 (适配 8G/12G/16G 显卡)
+## 🔄 生產環境一鍵自動更新流水線 (update.sh)
 
-针对显存有限的服务器或消费级显卡（如 RTX 3060 12GB、RTX 4060Ti 16GB、RTX 3090/4090 24GB），系统原生支持 **BitsAndBytes NF4 (Double Quantization)** 运行时动态自动量化，无需单独重新下载大模型文件：
-
-| 运行模式 | 静态模型显存 | 单图推理峰值显存 (Peak) | 决策一致率 | 最低推荐显卡 |
-| :--- | :---: | :---: | :---: | :--- |
-| **标准 BF16 原生精度** | 18.50 GB | 18.82 GB | 100% (基准) | NVIDIA L20 / A100 / A800 / RTX 3090/4090 (24GB+) |
-| **INT4 极简量化模式** | **7.48 GB** | **8.59 GB (-54.4%)** | **96.67%** | **RTX 3060 (12GB) / 4060Ti (16GB) 等** |
-
-### 1. 开启方法
-在根目录 `.env` 中配置：
-```env
-USE_INT4=true
-```
-服务启动加载模型时，框架自动在内存中动态将 16-bit 权重转为 4-bit 进显存，兼顾极高精度与显存压缩。
-
-### 2. INT4 显存与精度自检
-```bash
-python 04_client_tests/test_int4.py
-```
-
----
-
-## 🔄 生产环境一键自动更新流水线 (update.sh)
-
-为保证代码与大体积模型权重解耦持续交付（Code-Weight Decoupled CD），运维人员无需手动登录下载替换，执行根目录下的一键更新脚本即可全自动升级：
+本專案採用**程式碼與大體積模型權重解耦持續交付 (Code-Weight Decoupled CD)** 架構。當演算法團隊在 GitHub Release 發布新版模型時，運維人員只需執行一鍵更新腳本：
 
 ```bash
-# 全自动更新：Git代码拉取 + 检查 GitHub Release 最新权重 + 备份热替换 + 优雅重启服务
+# 全自動更新：Git 代碼拉取 + 檢測 GitHub Release 最新權重 + 備份熱替換 + 優雅重啟服務
 ./update.sh
 ```
 
-- **增量幂等检测**：通过 `patch/.version` 自动对比版本，若已是最新版本则跳过 128MB 下载，2 秒极速退出；
-- **自动安全备份**：更新前自动备份原权重至 `patch.bak/`，随时可安全回滚；
-- **常用参数说明**：
-  * `./update.sh --code-only`：仅更新 Git 代码与配置，不重新下载权重；
-  * `./update.sh --weights-only`：仅检测更新模型权重，跳过 Git 拉取；
-  * `./update.sh --tag v1.0.0`：一键回滚或指定安装特定 Release 版本的权重；
-  * `./update.sh --force`：强制重新下载并解压覆盖权重。
+- **增量等冪檢測**：透過 `patch/.version` 比對版本，若已是最新版則跳過下載，2 秒內極速完成；
+- **容災自動備份**：更新前自動備份現有權重至 `patch.bak/`，隨時支援一鍵回滾；
+- **靈活參數支援**：
+  * `./update.sh --code-only`：僅更新 Git 業務代碼與配置，不重複下載模型權重；
+  * `./update.sh --weights-only`：僅更新模型權重，跳過 Git 代碼拉取；
+  * `./update.sh --tag v1.0.0`：一鍵回滾或指定安裝特定 Release 版本的權重補丁；
+  * `./update.sh --force`：強制重新下載並解壓覆蓋權重。
 
 ---
 
-## 📦 客户极简交付流程 (GitHub Releases v1.1.0)
+## 📦 客戶交付規格資訊 (GitHub Releases v1.1.0)
 
-详见完整部署指南 👉 [DEPLOY.md](DEPLOY.md)。
-- **最新 Release 页面**：[GitHub Releases v1.1.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.1.0)
-- **核心交付附件**：[`patch.tar.gz`](https://github.com/monyhzc/style-curator-ai/releases/download/v1.1.0/patch.tar.gz)（约 128MB）
-  * 内置 **Step 4004 最终冠军模型权重**（MD5: `cb0b44251218ac80774288615564a20a`）；
-  * 包含 `lora_weights/` 与 `classifier_head.pt`。
-- **一键部署/升级**：生产环境执行 `./update.sh` 即可全自动拉取最新代码并热部署该权重补丁。
+完整技術與交付細節請參閱 👉 [DEPLOY.md](DEPLOY.md)。
+- **GitHub Release 官方頁面**：[Releases v1.1.0](https://github.com/monyhzc/style-curator-ai/releases/tag/v1.1.0)
+- **核心交付附件**：[`patch.tar.gz`](https://github.com/monyhzc/style-curator-ai/releases/download/v1.1.0/patch.tar.gz)（約 128MB）
+  * 內建 **Step 4004 最終冠軍模型權重**（MD5: `cb0b44251218ac80774288615564a20a`）；
+  * 包含 `lora_weights/` 與 `classifier_head.pt`。
+- **一鍵全自動部署**：直接運行 `bash quick_deploy.sh` 即可自動化完成全部部署流程。
