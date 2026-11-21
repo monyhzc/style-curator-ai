@@ -28,16 +28,43 @@ echo -e "${CYAN}🚀 Style Curator AI - 繁體中文客戶專屬 一鍵極速部
 echo -e "${CYAN}==================================================================${NC}"
 
 # ------------------------------------------------------------------------------
-# 步驟 1: 自動檢查環境與配置國內鏡像源依賴
+# 步驟 1: 自動檢查環境、Conda 獨立隔離與配置國內鏡像源依賴
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}⏳ [步驟 1/6] 檢查系統環境並配置 Python / CUDA 依賴...${NC}"
 
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}❌ 未檢測到 python3，請先安裝 Python 3.10+ 環境${NC}"
+CONDA_ENV_NAME="style_curator"
+USE_CONDA=false
+
+if command -v conda &> /dev/null; then
+    CONDA_BASE=$(conda info --base 2>/dev/null || echo "")
+    if [ -n "$CONDA_BASE" ] && [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+        source "$CONDA_BASE/etc/profile.d/conda.sh"
+        USE_CONDA=true
+        CURRENT_ENV=$(basename "$CONDA_PREFIX" 2>/dev/null || echo "")
+        
+        # 若伺服器已有其他應用或當前不在 style_curator 環境中，自動切換/建立獨立環境
+        if [ "$CURRENT_ENV" != "$CONDA_ENV_NAME" ]; then
+            if ! conda env list | grep -E "^${CONDA_ENV_NAME}[[:space:]]" &> /dev/null; then
+                echo -e "• 檢測到伺服器存在 Conda，為保障其他應用不受版本干擾，建立獨立隔離環境: ${GREEN}${CONDA_ENV_NAME} (Python 3.10)${NC}..."
+                conda create -n "$CONDA_ENV_NAME" python=3.10 -y
+            fi
+            conda activate "$CONDA_ENV_NAME"
+            echo -e "✓ 已自動切換至隔離環境: ${GREEN}${CONDA_ENV_NAME}${NC}"
+        fi
+    fi
+fi
+
+PYTHON_CMD="python3"
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
+    PYTHON_CMD="$CONDA_PREFIX/bin/python"
+fi
+
+if ! command -v "$PYTHON_CMD" &> /dev/null; then
+    echo -e "${RED}❌ 未檢測到 Python 直譯器，請先安裝 Python 3.10+ 環境${NC}"
     exit 1
 fi
-PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-echo -e "• Python 直譯器: ${GREEN}$(which python3) (版本: ${PY_VER})${NC}"
+PY_VER=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+echo -e "• Python 直譯器: ${GREEN}$($PYTHON_CMD -c 'import sys; print(sys.executable)') (版本: ${PY_VER})${NC}"
 
 if command -v nvidia-smi &> /dev/null; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
@@ -50,9 +77,20 @@ fi
 PIP_MIRROR="https://pypi.tuna.tsinghua.edu.cn/simple"
 export -n http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 
-echo -e "• 正在安裝核心依賴 (PyTorch, Transformers, PEFT, BitsAndBytes, ModelScope)..."
-python3 -m pip install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
-python3 -m pip install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
+echo -e "• 正在檢查並安裝核心依賴 (PyTorch, Transformers, PEFT, BitsAndBytes, ModelScope)..."
+"$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
+
+# 針對 NVIDIA H20 / Ada / Hopper 架構顯卡，驗證或安裝適配 CUDA 12 的 PyTorch (Hopper sm_90 需 CUDA 12+)
+if command -v nvidia-smi &> /dev/null; then
+    TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
+    if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
+        echo -e "• 正在為現代 GPU (如 H20 Hopper) 配置適配 CUDA 12 的 PyTorch..."
+        "$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
+        "$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" torch torchvision || true
+    fi
+fi
+
+"$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
 
 # ------------------------------------------------------------------------------
 # 步驟 2: 下載基座模型 (ModelScope 高速通道)
@@ -65,7 +103,7 @@ if [ -f "$BASE_WEIGHTS_DIR/config.json" ]; then
 else
     mkdir -p "$DIR/weights"
     echo -e "• 透過阿里魔搭社區國內高速 CDN 下載 (通常耗時 2~5 分鐘)..."
-    python3 "$DIR/01_environment/download_model.py" \
+    "$PYTHON_CMD" "$DIR/01_environment/download_model.py" \
         --model "Qwen/Qwen3.5-9B" \
         --local_dir "$BASE_WEIGHTS_DIR"
 fi
@@ -102,19 +140,26 @@ if [ -f "$MERGED_DIR/model.safetensors.index.json" ] || [ -f "$MERGED_DIR/model-
     echo -e "✓ 融合模型已存在於 ${GREEN}$MERGED_DIR${NC}，跳過重複融合。"
 else
     echo -e "• 執行物理疊加 (merge_and_unload)，生成獨立單體模型..."
-    python3 "$DIR/02_model/merge.py" \
+    "$PYTHON_CMD" "$DIR/02_model/merge.py" \
         --base "$BASE_WEIGHTS_DIR" \
         --patch "$DIR/patch" \
         --out "$MERGED_DIR"
 fi
 
 # ------------------------------------------------------------------------------
-# 步驟 5: 啟用 INT4 量化配置
+# 步驟 5: 啟用 INT4 量化配置與直譯器路徑固化
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}⏳ [步驟 5/6] 寫入生產配置 (啟用 INT4 雙重量化)...${NC}"
 ENV_FILE="$DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
     cp "$DIR/.env.example" "$ENV_FILE"
+fi
+
+# 固化獨立 Python 直譯器路徑，確保 service.sh 在任何外部 shell 下皆使用隔離環境
+if grep -q "PYTHON_EXEC=" "$ENV_FILE"; then
+    sed -i "s|^PYTHON_EXEC=.*|PYTHON_EXEC=$PYTHON_CMD|" "$ENV_FILE"
+else
+    echo "PYTHON_EXEC=$PYTHON_CMD" >> "$ENV_FILE"
 fi
 
 # 確保 USE_INT4=true
@@ -151,7 +196,7 @@ fi
 
 # 執行快速打分自檢
 echo -e "\n• 正在執行 INT4 冒煙推理自檢..."
-python3 -c "
+"$PYTHON_CMD" -c "
 import os, sys
 from pathlib import Path
 sys.path.insert(0, '$DIR/02_model')

@@ -11,7 +11,17 @@ import torch.nn as nn
 from PIL import Image
 from pathlib import Path
 from typing import List, Tuple, Optional, Any, Dict
-from transformers import AutoProcessor, AutoModelForImageTextToText
+try:
+    from transformers import AutoProcessor, AutoModelForImageTextToText
+except (ImportError, ModuleNotFoundError) as e:
+    try:
+        from transformers import AutoProcessor, AutoModelForVision2Seq as AutoModelForImageTextToText
+    except Exception:
+        import sys
+        print(f"❌ [依赖错误] 导入 transformers 视觉多模态组件失败: {e}", file=sys.stderr)
+        print("💡 Qwen3.5/Qwen2.5-VL 多模态要求 transformers >= 4.45.0 (推荐 4.46.3+)", file=sys.stderr)
+        print("💡 若服务器有其他应用，强烈建议使用独立的 Conda 隔离环境: conda create -n style_curator python=3.10", file=sys.stderr)
+        raise
 from peft import PeftModel
 
 # 8 大品牌专属风格调性定义

@@ -7,9 +7,9 @@
 ## 📋 架构与前置要求
 
 - **操作系统**：Linux (Ubuntu 20.04/22.04、Debian 11+、CentOS 7/8、Alibaba Cloud Linux)
-- **Python 环境**：Python 3.10+ (推荐 Miniconda / Anaconda)
+- **Python 环境**：Python 3.10+ (强烈推荐使用独立的 Conda 隔离环境，如 `style_curator`，避免污染或影响服务器上的其他应用)
 - **硬件配置**：
-  - 推理 GPU：NVIDIA 显卡（显存 $\ge 16\text{GB}$，如 RTX 4090、A10、L20、V100、A800 等）
+  - 推理 GPU：NVIDIA 显卡（显存 $\ge 16\text{GB}$，如 NVIDIA H20、H100、RTX 4090、A10、L20、V100、A800 等；建议 CUDA 12.1+ / 12.4+）
   - 磁盘空间：空余空间 $\ge 30\text{GB}$
 
 ---
@@ -18,11 +18,16 @@
 
 ### 【阶段一】环境搭建与基座下载
 
-1. **一键初始化国内运行环境**：
+1. **一键创建独立隔离环境与依赖 (Conda)**：
+   若服务器存在其他应用，推荐先执行独立环境构建脚本：
    ```bash
-   bash 01_environment/setup_env.sh
+   bash 01_environment/create_conda_env.sh
    ```
-   > 自动绑定清华大学 PyPI 镜像源，安装 PyTorch、Transformers、PEFT、FastAPI 及魔搭 ModelScope。
+   或者直接运行一键部署脚本（已内置 Conda 环境自动隔离与识别）：
+   ```bash
+   bash quick_deploy.sh
+   ```
+   > 自动隔离创建 `style_curator` Conda 环境，安装 PyTorch (CUDA 12.4 现代 GPU 架构构建版)、Transformers、PEFT、FastAPI 及魔搭 ModelScope。
 
 2. **通过魔搭社区 (ModelScope) 高速下载基座模型**：
    ```bash

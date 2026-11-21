@@ -16,6 +16,16 @@ elif [ -f "$DIR/.env" ]; then
 fi
 PORT="${PORT:-11451}"
 
+# 智能寻找可用 Python 直译器 (优先寻找 style_curator 专属 Conda 隔离环境)
+PYTHON_CMD="python3"
+if [ -n "$PYTHON_EXEC" ] && [ -x "$PYTHON_EXEC" ]; then
+  PYTHON_CMD="$PYTHON_EXEC"
+elif command -v conda &> /dev/null && [ -x "$(conda info --base 2>/dev/null)/envs/style_curator/bin/python" ]; then
+  PYTHON_CMD="$(conda info --base 2>/dev/null)/envs/style_curator/bin/python"
+elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
+  PYTHON_CMD="$CONDA_PREFIX/bin/python"
+fi
+
 case "$1" in
   start)
     if [ -f "$PID_FILE" ] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
@@ -23,10 +33,11 @@ case "$1" in
       exit 0
     fi
     echo "🚀 正在启动 Style Curator AI 生产服务..."
+    echo "• 解释器: $PYTHON_CMD"
     echo "• 监听端口: $PORT"
     echo "• 运行日志: $LOG_FILE"
     cd "$DIR"
-    nohup python3 -u app.py < /dev/null > "$LOG_FILE" 2>&1 &
+    nohup "$PYTHON_CMD" -u app.py < /dev/null > "$LOG_FILE" 2>&1 &
     PID=$!
     disown $PID 2>/dev/null || true
     echo $PID > "$PID_FILE"
