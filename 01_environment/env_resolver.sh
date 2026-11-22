@@ -7,10 +7,11 @@
 #   3. 統一提供穩定的 $PYTHON_CMD 與 $PIP_CMD
 # ==============================================================================
 
-# 1. 自動自愈 CRLF 換行符
+# 1. 自動自愈 CRLF 換行符與確保可執行權限
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if command -v sed &> /dev/null; then
     sed -i 's/\r$//' "$SELF_DIR"/*.sh "$SELF_DIR"/*/*.sh 2>/dev/null || true
+    chmod +x "$SELF_DIR"/*.sh "$SELF_DIR"/*/*.sh 2>/dev/null || true
 fi
 
 # 2. 獲取調用者的真實身份 (即使在 sudo 下也能定位真實用戶的主目錄)

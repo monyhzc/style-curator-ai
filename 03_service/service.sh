@@ -73,9 +73,9 @@ case "$1" in
     ;;
 
   restart)
-    $0 stop
+    bash "$BASH_SOURCE" stop
     sleep 2
-    $0 start
+    bash "$BASH_SOURCE" start
     ;;
 
   *)

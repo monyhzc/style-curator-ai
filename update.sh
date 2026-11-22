@@ -233,7 +233,7 @@ fi
 # ------------------------------------------------------------------------------
 if [ "$SERVICE_WAS_RUNNING" = true ] && [ "$AUTO_RESTART" = true ]; then
   echo -e "\n>>> 阶段 3: 正在优雅重启后台推理服务以载入最新代码与权重..."
-  "$DIR/service.sh" restart
+  bash "$DIR/service.sh" restart
   echo "✅ 服务已成功重启并载入最新版本！"
 elif [ "$SERVICE_WAS_RUNNING" = false ]; then
   echo -e "\n>>> 阶段 3: 服务此前处于停止状态，如需启动请运行:"
