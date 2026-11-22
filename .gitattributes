@@ -1,0 +1,21 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout, with LF in the repository.
+*.sh text eol=lf
+*.bash text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.conf text eol=lf
+*.example text eol=lf
+.env* text eol=lf
+.gitignore text eol=lf
+
+# Declare files that will always have LF line endings on checkout.
+*.tar.gz binary
+*.pt binary
+*.safetensors binary
+*.bin binary

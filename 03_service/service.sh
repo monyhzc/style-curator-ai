@@ -16,14 +16,13 @@ elif [ -f "$DIR/.env" ]; then
 fi
 PORT="${PORT:-11451}"
 
-# 智能寻找可用 Python 直译器 (优先寻找 style_curator 专属 Conda 隔离环境)
-PYTHON_CMD="python3"
-if [ -n "$PYTHON_EXEC" ] && [ -x "$PYTHON_EXEC" ]; then
+# 智能环境解析器 (支持普通用户、sudo 及任意外部 shell 无缝识别 style_curator 隔离环境)
+if [ -f "$ROOT_DIR/01_environment/env_resolver.sh" ]; then
+  source "$ROOT_DIR/01_environment/env_resolver.sh"
+elif [ -n "$PYTHON_EXEC" ] && [ -x "$PYTHON_EXEC" ]; then
   PYTHON_CMD="$PYTHON_EXEC"
-elif command -v conda &> /dev/null && [ -x "$(conda info --base 2>/dev/null)/envs/style_curator/bin/python" ]; then
-  PYTHON_CMD="$(conda info --base 2>/dev/null)/envs/style_curator/bin/python"
-elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
-  PYTHON_CMD="$CONDA_PREFIX/bin/python"
+else
+  PYTHON_CMD="python3"
 fi
 
 case "$1" in

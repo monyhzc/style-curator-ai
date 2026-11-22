@@ -32,39 +32,28 @@ echo -e "${CYAN}================================================================
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}⏳ [步驟 1/6] 檢查系統環境並配置 Python / CUDA 依賴...${NC}"
 
-CONDA_ENV_NAME="style_curator"
-USE_CONDA=false
+# 自動載入智能環境解析器 (自愈 CRLF、跨 sudo 嗅探 Conda/Python/Pip)
+source "$DIR/01_environment/env_resolver.sh"
 
-if command -v conda &> /dev/null; then
-    CONDA_BASE=$(conda info --base 2>/dev/null || echo "")
-    if [ -n "$CONDA_BASE" ] && [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
-        source "$CONDA_BASE/etc/profile.d/conda.sh"
-        USE_CONDA=true
-        CURRENT_ENV=$(basename "$CONDA_PREFIX" 2>/dev/null || echo "")
-        
-        # 若伺服器已有其他應用或當前不在 style_curator 環境中，自動切換/建立獨立環境
-        if [ "$CURRENT_ENV" != "$CONDA_ENV_NAME" ]; then
-            if ! conda env list | grep -E "^${CONDA_ENV_NAME}[[:space:]]" &> /dev/null; then
-                echo -e "• 檢測到伺服器存在 Conda，為保障其他應用不受版本干擾，建立獨立隔離環境: ${GREEN}${CONDA_ENV_NAME} (Python 3.10)${NC}..."
-                conda create -n "$CONDA_ENV_NAME" python=3.10 -y
-            fi
-            conda activate "$CONDA_ENV_NAME"
-            echo -e "✓ 已自動切換至隔離環境: ${GREEN}${CONDA_ENV_NAME}${NC}"
-        fi
-    fi
+if [ "$IS_SUDO" = true ]; then
+    echo -e "${YELLOW}⚠️ 檢測到以 sudo 運行。已自動穿透至真實用戶 [${REAL_USER}] 的專屬環境，避免 root 權限污染${NC}"
 fi
 
-PYTHON_CMD="python3"
-if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
-    PYTHON_CMD="$CONDA_PREFIX/bin/python"
-fi
-
-if ! command -v "$PYTHON_CMD" &> /dev/null; then
-    echo -e "${RED}❌ 未檢測到 Python 直譯器，請先安裝 Python 3.10+ 環境${NC}"
+if [ -z "$PYTHON_CMD" ] || ! command -v "$PYTHON_CMD" &> /dev/null; then
+    echo -e "${RED}❌ 未檢測到 Python 直譯器，請先安裝 Python 3.10+ 或 Miniconda${NC}"
     exit 1
 fi
-PY_VER=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-echo -e "• Python 直譯器: ${GREEN}$($PYTHON_CMD -c 'import sys; print(sys.executable)') (版本: ${PY_VER})${NC}"
+
+PY_VER=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "未知")
+echo -e "• Python 直譯器: ${GREEN}$($PYTHON_CMD -c 'import sys; print(sys.executable)' 2>/dev/null || echo "$PYTHON_CMD")${NC} (版本: ${PY_VER})"
+
+if [ -z "$PIP_CMD" ]; then
+    echo -e "${RED}❌ 未找到 pip 工具包！${NC}"
+    echo -e "💡 若使用系統 Python，請執行: sudo apt-get install -y python3-pip"
+    echo -e "💡 推薦使用 Conda 隔離環境: conda activate style_curator"
+    exit 1
+fi
+echo -e "• Pip 套件工具: ${GREEN}${PIP_CMD}${NC}"
 
 if command -v nvidia-smi &> /dev/null; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
@@ -78,19 +67,19 @@ PIP_MIRROR="https://pypi.tuna.tsinghua.edu.cn/simple"
 export -n http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 
 echo -e "• 正在檢查並安裝核心依賴 (PyTorch, Transformers, PEFT, BitsAndBytes, ModelScope)..."
-"$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
+$PIP_CMD install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
 
 # 針對 NVIDIA H20 / Ada / Hopper 架構顯卡，驗證或安裝適配 CUDA 12 的 PyTorch (Hopper sm_90 需 CUDA 12+)
 if command -v nvidia-smi &> /dev/null; then
     TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
     if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
         echo -e "• 正在為現代 GPU (如 H20 Hopper) 配置適配 CUDA 12 的 PyTorch..."
-        "$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
-        "$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" torch torchvision || true
+        $PIP_CMD install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
+        $PIP_CMD install -i "$PIP_MIRROR" torch torchvision || true
     fi
 fi
 
-"$PYTHON_CMD" -m pip install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
+$PIP_CMD install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
 
 # ------------------------------------------------------------------------------
 # 步驟 2: 下載基座模型 (ModelScope 高速通道)
@@ -209,6 +198,11 @@ dummy = Image.new('RGB', (224, 224), color=(200, 100, 50))
 score = engine.predict([(dummy, 'LIFE')])[0]
 print(f'✅ 推理成功！測試樣例打分: {score:.4f} | 引擎已在 INT4 模式下穩定就緒！')
 " || true
+
+# 若以 sudo 執行，將所有新生成檔案（權重、配置、日誌）歸屬權還給真實用戶
+if [ "$IS_SUDO" = true ] && [ -n "$REAL_USER" ]; then
+    chown -R "$REAL_USER:$REAL_USER" "$DIR" 2>/dev/null || true
+fi
 
 echo -e "\n${GREEN}==================================================================${NC}"
 echo -e "${GREEN}🎉 恭喜！Style Curator AI 已全自動完成一鍵部署並以 INT4 運行！${NC}"

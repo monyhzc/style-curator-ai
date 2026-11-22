@@ -105,6 +105,9 @@ if [ "$UPDATE_CODE" = true ]; then
       git pull --ff-only origin "$CURRENT_BRANCH"
       echo "✓ 代码更新完成！"
     fi
+    # 自动修复所有脚本的换行符 (CRLF -> LF) 并恢复执行权限
+    sed -i 's/\r$//' "$DIR"/*.sh "$DIR"/*/*.sh 2>/dev/null || true
+    chmod +x "$DIR"/*.sh "$DIR"/*/*.sh 2>/dev/null || true
   else
     echo "⚠️ 当前目录非 Git 仓库，跳过 git pull。"
   fi
