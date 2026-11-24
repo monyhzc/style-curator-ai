@@ -50,6 +50,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 from frontend_gate import FrontendGate
 app.add_middleware(FrontendGate)
 
+from review_routes import router as review_router
+app.include_router(review_router)
+
 executor = ThreadPoolExecutor(max_workers=4)
 BATCH_TASKS: Dict[str, Dict[str, Any]] = {}
 RATE_LIMIT_RECORDS: Dict[str, List[float]] = {}

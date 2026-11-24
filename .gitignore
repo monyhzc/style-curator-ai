@@ -13,3 +13,8 @@ patch.bak/
 *output*/
 *.jsonl
 .DS_Store
+
+# Review Workbench Local Data
+03_service/data/reviews.db
+03_service/data/uploads/
+03_service/data/thumbnails/
