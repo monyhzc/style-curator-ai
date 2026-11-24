@@ -24,14 +24,17 @@ def print_result(name: str, passed: bool, detail: str = ""):
         print(f"       详情: {detail}")
 
 def main():
+    default_port = os.environ.get("PORT", "11451")
+    default_token = os.environ.get("APP_AUTH_TOKEN", "jw_style_audit_prod_token_2026")
+
     parser = argparse.ArgumentParser(description="选款 AI 生产服务自动化冒烟检测")
-    parser.add_argument("--url", type=str, default="http://127.0.0.1:11451", help="服务基础 URL")
-    parser.add_argument("--token", type=str, default=None, help="鉴权 Token")
+    parser.add_argument("--url", type=str, default=f"http://127.0.0.1:{default_port}", help="服务基础 URL")
+    parser.add_argument("--token", type=str, default=default_token, help="鉴权 Token")
     parser.add_argument("--image_url", type=str, default="http://127.0.0.1:18889/sample_tshirt.jpg", help="测试图片 URL")
     args = parser.parse_args()
 
     base_url = args.url.rstrip("/")
-    token = args.token or "jw_style_audit_prod_token_2026"
+    token = args.token
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     session = requests.Session()
