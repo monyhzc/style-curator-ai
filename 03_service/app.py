@@ -47,6 +47,9 @@ ALLOWLIST_PATH = os.environ.get("ALLOWLIST_PATH", str(Path(__file__).parent / "d
 app = FastAPI(title="Style Curator AI API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+from frontend_gate import FrontendGate
+app.add_middleware(FrontendGate)
+
 executor = ThreadPoolExecutor(max_workers=4)
 BATCH_TASKS: Dict[str, Dict[str, Any]] = {}
 RATE_LIMIT_RECORDS: Dict[str, List[float]] = {}

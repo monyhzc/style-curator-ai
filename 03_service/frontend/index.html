@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>真維斯圖像風格審核系統 | Jeanswest Style Audit</title>
+    <style>
+        :root {
+            /* 企业级调色板 */
+            --primary-color: #003366; /* 真维斯深蓝 */
+            --primary-hover: #002244;
+            --accent-color: #0056b3;
+            --bg-body: #f4f6f8;
+            --bg-surface: #ffffff;
+            --text-main: #1c2434;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            
+            /* 状态色 */
+            --success-bg: #dcfce7; --success-text: #166534;
+            --warning-bg: #fef3c7; --warning-text: #92400e;
+            --danger-bg: #fee2e2;  --danger-text: #991b1b;
+
+            /* 结果标签色 */
+            --res-high: #10b981; /* 非常符合 - 绿色 */
+            --res-mid: #f59e0b;  /* 中度符合 - 橙色 */
+            --res-low: #ef4444;  /* 不符合 - 红色 */
+
+            --radius: 4px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont,"Segoe UI", Roboto, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-size: 14px;
+            line-height: 1.5;
+            padding-bottom: 80px;
+        }
+
+        /* Navbar */
+        .navbar {
+            background-color: var(--primary-color);
+            color: #fff;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+        .navbar-brand { font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 12px; }
+        .navbar-brand::before { content: "JEANSWEST"; font-family: serif; font-weight: 900; letter-spacing: 2px; font-size: 20px; color: #fff; margin-right: 10px; padding-right: 15px; border-right: 1px solid rgba(255,255,255,0.3); }
+
+        .container { max-width: 1400px; margin: 24px auto; padding: 0 24px; display: grid; gap: 24px; }
+
+        .card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: visible;
+}
+
+        /* Upload */
+        .upload-panel { background-color: var(--bg-surface); border: 1px dashed #cbd5e1; border-radius: var(--radius); padding: 30px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-panel:hover { border-color: var(--accent-color); background-color: #f0f9ff; }
+
+        /* Task Selector */
+        .task-selector { margin-bottom: 15px; display: flex; justify-content: center; gap: 20px; }
+        .radio-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500; font-size: 14px; }
+        .radio-label input { cursor: pointer; transform: scale(1.2); }
+        /* [新增] 上传品牌按钮组 (8 个品牌，选中显品牌色、未选灰色) */
+        #brand-btn-group { gap: 8px; flex-wrap: wrap; }
+        .brand-btn { padding: 5px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); background: #fff; color: #94a3b8; font-weight: 600; font-size: 13px; cursor: pointer; transition: 0.15s; }
+        .brand-btn:hover { border-color: var(--bc); color: var(--bc); }
+        .brand-btn.active { background: var(--bc); border-color: var(--bc); color: #fff; }
+
+        /* Tabs */
+        .tabs-container { display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-surface); }
+        .tab { padding: 12px 24px; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text-secondary); border-bottom: 2px solid transparent; }
+        .tab:hover { color: var(--primary-color); background-color: #f8fafc; }
+        .tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+
+        /* Toolbar */
+        .toolbar { padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); border-bottom: 1px solid var(--border-color); }
+        .tool-group { display: flex; align-items: center; gap: 12px; }
+        .tool-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; }
+        
+        select { padding: 6px 30px 6px 12px; border-radius: var(--radius); border: 1px solid var(--border-color); font-size: 13px; cursor: pointer; }
+        
+        .icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); background: #fff; border-radius: var(--radius); color: var(--text-secondary); cursor: pointer; transition: 0.2s; font-family: monospace; font-size: 16px; }
+        .icon-btn:hover { background-color: #f1f5f9; color: var(--primary-color); }
+        .icon-btn.active { background-color: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+        /* Table */
+        .table-responsive { width: 100%; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 12px 20px; background: #f8fafc; color: var(--text-secondary); font-weight: 600; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); }
+        td { padding: 12px 20px; border-bottom: 1px solid var(--border-color); vertical-align: middle; color: var(--text-main); }
+        tbody tr:hover { background-color: #f8fafc; }
+
+        .col-select { width: 40px; text-align: center; display: none; }
+        .col-select.show { display: table-cell; }
+        input[type="checkbox"] { cursor: pointer; transform: scale(1.1); }
+
+        .file-meta { display: flex; align-items: center; gap: 16px; }
+        .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border-color); cursor: zoom-in; background: #fff; }
+        .file-name { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-id { font-family: monospace; font-size: 11px; color: var(--text-secondary); }
+
+        /* Badges & Tags */
+        .task-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; margin-right: 6px; border: 1px solid #e2e8f0; }
+        
+        .result-label { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        
+        .status-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: 500; }
+        .status-approved { background: var(--success-bg); color: var(--success-text); }
+        
+        /* [修改] 已驳回样式修改为浅红背景+深红字体 */
+        .status-rejected { background: var(--danger-bg); color: var(--danger-text); }
+
+        /* Buttons */
+        .btn { padding: 4px 10px; font-size: 12px; border-radius: var(--radius); border: 1px solid var(--border-color); background: #fff; cursor: pointer; transition: 0.1s; font-weight: 500; }
+        .btn:hover { background: #f1f5f9; }
+        .btn-primary { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { color: var(--danger-text); border-color: #fecaca; }
+        .btn-danger:hover { background: var(--danger-bg); }
+        .btn-warning { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+        .btn-warning:hover { background: #fef3c7; border-color: #fbbf24; }
+
+        /* 标记错误按钮样式 */
+        .btn-link-danger {
+            background: none; border: none; padding: 0;
+            font-size: 11px; color: #ef4444; cursor: pointer;
+            text-decoration: underline; margin-top: 6px; display: inline-block;
+        }
+        .btn-link-danger:hover { color: #b91c1c; }
+        .btn-link-danger.disabled { color: #94a3b8; cursor: default; text-decoration: none; }
+
+        /* 品牌筛选下拉菜单样式 */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-btn { 
+            padding: 6px 12px; border: 1px solid var(--border-color); background: #fff; 
+            border-radius: var(--radius); cursor: pointer; font-size: 13px; 
+            display: flex; align-items: center; gap: 6px; font-weight: 500;
+        }
+        .dropdown-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .dropdown-menu { 
+            display: none; position: absolute; top: 100%; left: 0; 
+            background: #fff; border: 1px solid var(--border-color); 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            border-radius: var(--radius); padding: 8px; z-index: 50; 
+            min-width: 140px; margin-top: 4px;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 13px; cursor: pointer; border-radius: 2px; }
+        .dropdown-item:hover { background-color: #f1f5f9; }
+        .dropdown-item input { cursor: pointer; }
+
+        /* Batch Bar */
+        .batch-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%); background: #1e293b; color: #fff; padding: 12px 24px; border-radius: 8px; display: flex; align-items: center; gap: 20px; z-index: 900; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .batch-bar.visible { transform: translateX(-50%) translateY(0); }
+        .batch-info { font-weight: 500; font-size: 14px; border-right: 1px solid rgba(255,255,255,0.2); padding-right: 20px; }
+        .batch-actions { display: flex; gap: 10px; }
+        .btn-dark { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; }
+        .btn-dark:hover { background: rgba(255,255,255,0.2); }
+        .btn-dark-danger { background: #7f1d1d; border: 1px solid #991b1b; color: #fecaca; }
+        .btn-dark-danger:hover { background: #991b1b; }
+
+        #modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(2px); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        #modal img { max-width: 90%; max-height: 85vh; border-radius: 2px; background: #fff; padding: 4px; }
+
+        .pagination-container {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; /* 靠右显示，如果想居中改成 center */
+            gap: 8px;
+            background: #fff;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 32px;
+            padding: 0 6px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            border-radius: var(--radius);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            background-color: #f0f9ff;
+        }
+
+        .page-btn.active {
+            background-color: var(--primary-color);
+            color: #fff;
+            border-color: var(--primary-color);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #f8fafc;
+        }
+
+        .page-info {
+            margin-right: 12px;
+            font-weight: 500;
+        }
+
+        .page-jump {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 12px;
+        }
+
+        .page-input {
+            width: 50px;
+            height: 32px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-brand">圖像風格審核系統 <span style="font-size: 12px; opacity: 0.6; margin-top: 4px;"> 內部版本 V4.0</span></div>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div style="padding: 20px;">
+            <!-- 上传品牌选择：8 个按钮，选中显品牌色、未选灰色 -->
+            <div class="task-selector" id="brand-btn-group">
+                <button type="button" class="brand-btn active" data-brand="LIFE"    style="--bc:#8b5cf6" title="生活休閒"   onclick="selectUploadBrand(this)">LIFE</button>
+                <button type="button" class="brand-btn" data-brand="OUTDOOR" style="--bc:#ff7f0e" title="戶外機能"   onclick="selectUploadBrand(this)">OUTDOOR</button>
+                <button type="button" class="brand-btn" data-brand="Z+"      style="--bc:#2ca02c" title="潮流系列"   onclick="selectUploadBrand(this)">Z+</button>
+                <button type="button" class="brand-btn" data-brand="MAIN"    style="--bc:#D8C398" title="主品牌"     onclick="selectUploadBrand(this)">MAIN</button>
+                <button type="button" class="brand-btn" data-brand="JEANS"   style="--bc:#4a69bd" title="牛仔系列"   onclick="selectUploadBrand(this)">JEANS</button>
+                <button type="button" class="brand-btn" data-brand="JNR"     style="--bc:#ec4899" title="真維斯童裝" onclick="selectUploadBrand(this)">JNR</button>
+                <button type="button" class="brand-btn" data-brand="JKIDS"   style="--bc:#06b6d4" title="童裝"       onclick="selectUploadBrand(this)">JKIDS</button>
+                <button type="button" class="brand-btn" data-brand="JSPORT"  style="--bc:#d946ef" title="運動童裝"   onclick="selectUploadBrand(this)">JSPORT</button>
+            </div>
+
+            <div class="upload-panel" id="drop-area">
+                <div style="font-size: 24px; color: #64748b;">☁️</div>
+                <div style="font-weight: 500;">點擊或拖曳圖片檔案至此</div>
+                <input type="file" id="file-input" multiple style="display:none">
+                <div id="status-msg" style="color: var(--accent-color); margin-top: 12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="tabs-container">
+            <div class="tab active" onclick="switchTab('pending')">待處理任務</div>
+            <div class="tab" onclick="switchTab('processed')">歷史記錄</div>
+            <div class="tab" onclick="switchTab('trash')">回收站</div>
+        </div>
+
+        <div class="toolbar">
+            <div class="tool-group">
+                <span class="tool-label">顯示品牌:</span>
+                <div class="dropdown" id="brand-dropdown">
+                    <button class="dropdown-btn" onclick="toggleBrandMenu(event)">
+                        <!-- 初始全选数量：8 (成人5+童装3) -->
+                        <span id="brand-btn-text">全選 (8)</span>
+                        <span style="font-size: 10px; color: #94a3b8;">▼</span>
+                    </button>
+                    <div class="dropdown-menu" id="brand-menu" onclick="event.stopPropagation()">
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="LIFE" checked onchange="fetchData()"> <span style="color:#8b5cf6; font-weight:bold;">LIFE</span>
+                        </label>
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="OUTDOOR" checked onchange="fetchData()"> <span style="color:#ff7f0e; font-weight:bold;">OUTDOOR</span>
+                        </label>
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="Z+" checked onchange="fetchData()"> <span style="color:#2ca02c; font-weight:bold;">Z+</span>
+                        </label>
+                        <!-- [修改点 3] 添加主品牌筛选选项 -->
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="MAIN" checked onchange="fetchData()"> <span style="color:#D8C398; font-weight:bold;">MAIN</span>
+                        </label>
+                        <!-- [新增] 牛仔品牌筛选选项 -->
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="JEANS" checked onchange="fetchData()"> <span style="color:#4a69bd; font-weight:bold;">JEANS</span>
+                        </label>
+                        <!-- [新增] 童装三品牌筛选选项 -->
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="JNR" checked onchange="fetchData()"> <span style="color:#ec4899; font-weight:bold;">JNR</span>
+                        </label>
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="JKIDS" checked onchange="fetchData()"> <span style="color:#06b6d4; font-weight:bold;">JKIDS</span>
+                        </label>
+                        <label class="dropdown-item">
+                            <input type="checkbox" value="JSPORT" checked onchange="fetchData()"> <span style="color:#d946ef; font-weight:bold;">JSPORT</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="filter-wrap" style="display:block;">
+                    <span class="tool-label">篩選:</span>
+                    <select id="filter-sel" onchange="fetchData()">
+                        <option value="all">全部狀態</option>
+                        <option value="high">非常符合</option>
+                        <option value="mid">中度符合</option>
+                        <option value="low">不符合</option>
+                    </select>
+                </div>
+
+                <div class="tool-group">
+                    <span class="tool-label">排序:</span>
+                    <select id="sort-field-sel" onchange="fetchData()">
+                        <option value="id">時間</option>
+                        <option value="score">置信度</option>
+                        <option value="name">檔名</option>
+                    </select>
+                    <button id="sort-order-btn" class="icon-btn" onclick="toggleSortOrder()" title="切換順序">↓</button>
+                    <button id="multi-select-btn" class="icon-btn" onclick="toggleSelectMode()" title="批量操作">☑</button>
+                </div>
+            </div>
+
+            <div class="tool-group">
+                <button class="icon-btn" onclick="undoGlobal()" title="撤回 (Undo)">↩</button>
+                <button class="icon-btn" onclick="fetchData()" title="刷新">🔄</button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-select"><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></th>
+                        <th width="45%">圖像資訊</th>
+                        <th width="30%">風格審核結果 (AI)</th>
+                        <th width="25%">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="list-body"></tbody>
+            </table>
+        </div>
+        <div id="pagination" class="pagination-container">
+        </div>
+    </div>
+</div>
+
+<div class="batch-bar" id="batch-bar">
+    <div class="batch-info">已選擇 <span id="selected-count">0</span> 項</div>
+    <div class="batch-actions" id="batch-actions-container"></div>
+</div>
+
+<div id="modal" onclick="this.style.display='none'"><img id="modal-img" src=""></div>
+
+<script>
+    // 部署可能挂在任意子路径下(如 nginx 的 /styleai),所有请求必须带上该前缀。
+    // 从当前页面地址推导:去掉末尾斜杠即挂载前缀;根路径部署时为空串,行为不变。
+    const BASE = location.pathname.replace(/\/+$/, '');
+
+    const BRAND_COLORS = {
+        "LIFE":    "#8b5cf6",  // 浅紫
+        "OUTDOOR": "#ff7f0e",  // 橙
+        "Z+":      "#2ca02c",  // 绿
+        "MAIN":    "#D8C398",  // [修改点 4] 奶白色/象牙色 (主品牌)
+        "JEANS":   "#4a69bd",  // [新增] 丹宁靛蓝 (牛仔系列)
+        "JNR":     "#ec4899",  // [新增] 童装 玫粉
+        "JKIDS":   "#06b6d4",  // [新增] 童装 天青
+        "JSPORT":  "#d946ef"   // [新增] 童装 品红
+    };
+
+    // [新增] 上传品牌按钮：单选，记录当前选中品牌 (替代原 radio)
+    let currentUploadBrand = 'LIFE';
+    function selectUploadBrand(btn) {
+        document.querySelectorAll('#brand-btn-group .brand-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentUploadBrand = btn.dataset.brand;
+    }
+
+    let isInputActive = false;
+
+    let currTab = 'pending';
+    let currSortOrder = 'desc'; 
+    let isSelectMode = false;
+    let selectedIds = new Set();
+
+    // 分页状态
+    let currentPage = 0;
+    let isLoading = false;
+    let hasMore = true;
+    const pageSize = 25;
+
+    // 智能轮询状态
+    let pollingTimer = null;
+    let hasPendingItems = false;
+    const pollingInterval = 3000; // 3秒轮询一次
+
+    // 需要原样展示给用户的错误；其余异常统一显示「網絡錯誤」
+    class ApiError extends Error {}
+    const errorText = e => e instanceof ApiError ? e.message : '網絡錯誤';
+
+    // 统一处理登录过期和限流，调用方不必各自判断 401/429
+    async function apiFetch(url, options) {
+        const res = await fetch(url, options);
+        if (res.status === 401) {
+            window.location.href = `${BASE}/login`;
+            throw new ApiError('登入已過期，請重新登入');
+        }
+        if (res.status === 429) {
+            const wait = res.headers.get('Retry-After') || 1;
+            throw new ApiError(`請求太頻繁，請 ${wait} 秒後再試`);
+        }
+        return res;
+    }
+
+    // 列表刷新失败时保留当前内容，只在状态栏提示；下次刷新成功后自动清除
+    let refreshErrorMsg = '';
+    function showRefreshError(msg) {
+        refreshErrorMsg = `列表刷新失敗: ${msg}`;
+        document.getElementById('status-msg').innerText = refreshErrorMsg;
+    }
+    function clearRefreshError() {
+        const statusEl = document.getElementById('status-msg');
+        if (refreshErrorMsg && statusEl.innerText === refreshErrorMsg) statusEl.innerText = '';
+        refreshErrorMsg = '';
+    }
+
+    // 初次加载时获取数据
+    fetchData();
+
+    
+    function toggleBrandMenu(e) {
+        e.stopPropagation();
+        document.getElementById('brand-menu').classList.toggle('show');
+    }
+
+    window.addEventListener('click', () => {
+        const menu = document.getElementById('brand-menu');
+        if (menu) menu.classList.remove('show');
+    });
+
+    function getSelectedBrands() {
+        const checkboxes = document.querySelectorAll('#brand-menu input[type="checkbox"]');
+        const selected = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) selected.push(cb.value);
+        });
+        
+        const btnText = document.getElementById('brand-btn-text');
+        if (btnText) {
+            // 全选判断：8 个品牌 (成人5+童装3)
+            if (selected.length === 8) btnText.innerText = '全選 (8)';
+            else if (selected.length === 0) btnText.innerText = '未選擇';
+            else btnText.innerText = `已選 (${selected.length})`;
+        }
+        
+        return selected;
+    }
+
+function switchTab(tab) {
+        currTab = tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        const filterWrap = document.getElementById('filter-wrap');
+        const filterSel = document.getElementById('filter-sel');
+
+        // --- 修改开始 ---
+        if (tab === 'pending') {
+            // 原来是: filterWrap.style.display = 'none';
+            // 修改为: 显示并填充 AI 结果筛选选项
+            filterWrap.style.display = 'block';
+            filterSel.innerHTML = `
+                <option value="all">全部狀態</option>
+                <option value="high">非常符合</option>
+                <option value="mid">中度符合</option>
+                <option value="low">不符合</option>
+            `;
+        } 
+        // --- 修改结束 ---
+        else if (tab === 'processed') {
+            filterWrap.style.display = 'block';
+            filterSel.innerHTML = `<option value="all">全部狀態</option><option value="approved">已通過</option><option value="rejected">已駁回</option>`;
+            stopPolling(); 
+        } else if (tab === 'trash') {
+            filterWrap.style.display = 'block';
+            filterSel.innerHTML = `<option value="all">全部文件</option><option value="unprocessed">未處理</option><option value="processed">已處理</option>`;
+            stopPolling(); 
+        }
+        filterSel.value = 'all'; // 重置为默认选项
+        exitSelectMode();
+        currentPage = 0;
+        hasMore = true;
+        fetchData();
+    }
+
+    function toggleSortOrder() {
+        const btn = document.getElementById('sort-order-btn');
+        if (currSortOrder === 'desc') { currSortOrder = 'asc'; btn.innerText = '↑'; } 
+        else { currSortOrder = 'desc'; btn.innerText = '↓'; }
+        fetchData();
+    }
+
+    function toggleSelectMode() {
+        isSelectMode = !isSelectMode;
+        const btn = document.getElementById('multi-select-btn');
+        if (isSelectMode) {
+            btn.classList.add('active');
+            document.querySelectorAll('.col-select').forEach(el => el.classList.add('show'));
+        } else {
+            exitSelectMode();
+        }
+    }
+
+    function exitSelectMode() {
+        isSelectMode = false;
+        selectedIds.clear();
+        document.getElementById('multi-select-btn').classList.remove('active');
+        document.querySelectorAll('.col-select').forEach(el => el.classList.remove('show'));
+        document.getElementById('select-all').checked = false;
+        updateBatchBar();
+    }
+
+    function toggleSelectAll() {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        const allChecked = document.getElementById('select-all').checked;
+        selectedIds.clear();
+        if (allChecked) {
+            checkboxes.forEach(cb => { cb.checked = true; selectedIds.add(parseInt(cb.value)); });
+        } else {
+            checkboxes.forEach(cb => cb.checked = false);
+        }
+        updateBatchBar();
+    }
+
+    function toggleRowSelection(id) {
+        if (selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        updateBatchBar();
+    }
+
+    function updateBatchBar() {
+        const bar = document.getElementById('batch-bar');
+        const countSpan = document.getElementById('selected-count');
+        const container = document.getElementById('batch-actions-container');
+        
+        countSpan.innerText = selectedIds.size;
+        
+        if (selectedIds.size > 0) {
+            bar.classList.add('visible');
+            let html = '';
+            if (currTab === 'pending') {
+                html = `<button class="btn btn-dark" onclick="batchAct('approve')">批量通過</button>
+                        <button class="btn btn-dark" onclick="batchAct('reject')">批量駁回</button>
+                        <button class="btn btn-dark-danger" onclick="batchAct('delete')">批量刪除</button>`;
+            } else if (currTab === 'processed') {
+                html = `<button class="btn btn-dark" onclick="batchAct('withdraw')">批量撤回</button>
+                        <button class="btn btn-dark" onclick="batchAct('approve')">改通過</button>
+                        <button class="btn btn-dark" onclick="batchAct('reject')">改駁回</button>
+                        <button class="btn btn-dark-danger" onclick="batchAct('delete')">批量刪除</button>`;
+            } else if (currTab === 'trash') {
+                html = `<button class="btn btn-dark" onclick="batchAct('restore')">批量還原</button>
+                        <button class="btn btn-dark-danger" onclick="if(confirm('確定永久刪除？')) batchAct('permanent_delete')">永久刪除</button>`;
+            }
+            container.innerHTML = html;
+        } else {
+            bar.classList.remove('visible');
+        }
+    }
+
+    async function updateTask(id, newTask) {
+        try {
+            const fd = new FormData();
+            fd.append('id', id);
+            fd.append('new_task', newTask);
+            
+            const res = await apiFetch(`${BASE}/api/update_task`, { method: 'POST', body: fd });
+            const data = await res.json();
+            
+            if (data.status === 'ok') {
+                fetchData(); 
+            } else {
+                alert('修改失敗: ' + (data.msg || '無變化或錯誤'));
+            }
+        } catch(e) {
+            console.error(e);
+            alert(errorText(e));
+        }
+    }
+
+    async function batchAct(action) {
+        if (selectedIds.size === 0) return;
+        const ids = Array.from(selectedIds);
+        try {
+            const res = await apiFetch(`${BASE}/api/batch_action`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids: ids, action: action })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') { exitSelectMode(); fetchData(); } 
+            else { alert('部分操作失敗'); }
+        } catch(e) { console.error(e); alert(errorText(e)); }
+    }
+
+    async function fetchData() {
+        if (isLoading) return;
+        isLoading = true;
+        
+        // 获取参数
+        const brands = getSelectedBrands().join(',');
+        const filter = document.getElementById('filter-sel').value;
+        const sortField = document.getElementById('sort-field-sel').value;
+        
+        // 注意：现在不需要 append 参数了，每次都是重新加载当前页
+        const url = `${BASE}/api/results?tab=${currTab}&filter=${filter}&sort=${sortField}&order=${currSortOrder}&brands=${encodeURIComponent(brands)}&page=${currentPage}&limit=${pageSize}`;
+        
+        try {
+            const res = await apiFetch(url);
+            if (!res.ok) throw new ApiError(`HTTP ${res.status}`);
+            const data = await res.json();
+            
+            // 1. 获取后端返回的数据列表和总数
+            let displayItems = data.results;
+            const totalCount = data.total || 0; // 获取总数
+
+            // (Trash 栏目的特殊前端筛选逻辑保留)
+            if (currTab === 'trash' && filter !== 'all') {
+                displayItems = displayItems.filter(item => {
+                    const isProcessedOrigin = ['approved', 'rejected'].includes(item.pre_delete_status);
+                    if (filter === 'processed') return isProcessedOrigin;
+                    if (filter === 'unprocessed') return !isProcessedOrigin;
+                    return true;
+                });
+                // 注意：Trash的前端筛选会导致分页总数显示不准，这是前端筛选的局限性
+                // 严谨做法是后端做筛选，但为了最小入侵，这里暂且接受
+            }
+            
+            // 2. 渲染表格（强制覆盖，不再追加）
+            render(displayItems, false);
+            
+            // 3. 渲染分页条
+            renderPagination(totalCount);
+            clearRefreshError();
+
+            // 4. 轮询逻辑控制
+            const pendingCount = displayItems.filter(item => 
+                item.status === 'pending' || item.status === 'done'
+            ).length;
+            hasPendingItems = pendingCount > 0;
+            
+            if (currTab === 'pending' && hasPendingItems) {
+                startPolling();
+            } else {
+                stopPolling();
+            }
+
+        } catch(e) {
+            console.error(e);
+            showRefreshError(errorText(e));
+            // 首次加载就失败时轮询还没启动，补上才能自动恢复
+            if (currTab === 'pending') startPolling();
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    function goToPage(page) {
+        if (page === currentPage) return;
+        currentPage = page;
+        fetchData();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 渲染分页条核心逻辑
+    function renderPagination(totalCount) {
+        const totalPages = Math.ceil(totalCount / pageSize);
+        const container = document.getElementById('pagination');
+        
+        if (totalCount === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        // 1. 页数信息
+        let html = `<div class="page-info">頁數 ${currentPage + 1} / ${totalPages} (共 ${totalCount} 條)</div>`;
+
+        // 2. 首页 & 上一页
+        html += `<button class="page-btn" onclick="goToPage(0)" ${currentPage === 0 ? 'disabled' : ''}>首頁</button>`;
+        html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>上一頁</button>`;
+
+        // 3. 数字按钮 (智能显示 1 ... 4 5 6 ... 10)
+        const maxBtns = 5; 
+        let startPage = Math.max(0, currentPage - 2);
+        let endPage = Math.min(totalPages - 1, startPage + maxBtns - 1);
+        
+        if (endPage - startPage < maxBtns - 1) {
+            startPage = Math.max(0, endPage - maxBtns + 1);
+        }
+
+        if (startPage > 0) {
+            html += `<button class="page-btn" onclick="goToPage(0)">1</button>`;
+            if (startPage > 1) html += `<span style="margin:0 4px">...</span>`;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i + 1}</button>`;
+        }
+
+        if (endPage < totalPages - 1) {
+            if (endPage < totalPages - 2) html += `<span style="margin:0 4px">...</span>`;
+            html += `<button class="page-btn" onclick="goToPage(${totalPages - 1})">${totalPages}</button>`;
+        }
+
+        // 4. 下一页 & 尾页
+        html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>下一頁</button>`;
+        html += `<button class="page-btn" onclick="goToPage(${totalPages - 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>尾頁</button>`;
+
+        // 5. 跳转输入框
+        html += `
+            <div class="page-jump">
+                至 <input type="number" id="jump-input" class="page-input" min="1" max="${totalPages}" value="${currentPage + 1}"> 頁
+                <button class="btn btn-primary" onclick="handleJump(${totalPages})">確定</button>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // [新增] 处理输入框跳转
+    function handleJump(totalPages) {
+        const input = document.getElementById('jump-input');
+        let val = parseInt(input.value);
+        if (isNaN(val) || val < 1) val = 1;
+        if (val > totalPages) val = totalPages;
+        goToPage(val - 1);
+    }
+
+    // 启动智能轮询
+    function startPolling() {
+        if (pollingTimer) return; // 已经在轮询中
+        pollingTimer = setInterval(() => {
+            if (!isInputActive && !isLoading && currTab === 'pending') {
+                fetchData(false); // 刷新第一页数据
+            }
+        }, pollingInterval);
+    }
+
+    // 停止轮询
+    function stopPolling() {
+        if (pollingTimer) {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+        }
+    }
+
+    async function markError(id, btn) {
+        if (!confirm('確認標記此結果為嚴重錯誤？\n這將幫助我們優化模型。')) return;
+        
+        try {
+            const res = await apiFetch(`${BASE}/api/mark_error`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: id })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                btn.innerText = '✅ 已反饋';
+                btn.classList.add('disabled');
+                btn.onclick = null;
+            } else {
+                alert('標記失敗: ' + data.msg);
+            }
+        } catch(e) {
+            console.error(e);
+            alert(errorText(e));
+        }
+    }
+
+    function render(items, append = false) {
+        isInputActive = false;
+
+        const tbody = document.getElementById('list-body');
+        
+        if (!append && (!items || !items.length)) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px; color:var(--text-secondary);">暫無相關數據</td></tr>';
+            hasMore = false;
+            return;
+        }
+        
+        if (!items || !items.length) return;
+        
+        const html = items.map(item => {
+            const thumbUrl = `${BASE}/image/thumbnails/${item.thumb_name}`;
+            const fullUrl = `${BASE}/image/${item.folder}/${item.safe_name}`;
+            
+            // [修改] 将 tag 生成逻辑提前
+            let tag = '';
+            const getTagHtml = (status) => {
+                if (status === 'approved') return '<span class="status-tag status-approved">已通過</span>';
+                if (status === 'rejected') return '<span class="status-tag status-rejected">已駁回</span>';
+                return '';
+            };
+
+            if (currTab === 'processed') tag = getTagHtml(item.status);
+            else if (currTab === 'trash' && item.pre_delete_status) tag = getTagHtml(item.pre_delete_status);
+
+            let infoHtml = '';
+            if (item.status === 'pending') infoHtml = '<span style="color:#64748b">⏳ 風格分析中...</span>';
+            else if (item.status === 'error') infoHtml = `<span style="color:#991b1b" title="${item.error_msg || ''}">❌ 分析失敗</span>`;
+            else if (item.ai_result) {
+                const level = item.ai_result.level; 
+                let color = 'var(--text-secondary)';
+                let dotColor = '#cbd5e1';
+                
+                if (level === '非常符合') { color = 'var(--res-high)'; dotColor = 'var(--res-high)'; }
+                else if (level === '中度符合') { color = 'var(--res-mid)'; dotColor = 'var(--res-mid)'; }
+                else if (level === '不符合') { color = 'var(--res-low)'; dotColor = 'var(--res-low)'; }
+                
+                let markBtn = '';
+                if (currTab === 'processed') {
+                    if (item.is_marked_error) {
+                        markBtn = `<button class="btn-link-danger disabled">✅ 已反饋</button>`;
+                    } else {
+                        markBtn = `<button class="btn-link-danger" onclick="markError(${item.id}, this)">🚩 標記模型錯誤</button>`;
+                    }
+                }
+
+                // [修改] 将 ${tag} 插入到 AI 结果标签文字的后面
+                infoHtml = `
+                    <div class="result-label" style="color:${color}">
+                        <span class="dot" style="background:${dotColor}"></span>
+                        ${level}
+                        ${tag}
+                    </div>
+                    <div style="font-size:11px; color:#94a3b8; margin-top:4px;">
+                        置信度: ${(item.ai_result.probability * 100).toFixed(1)}%
+                    </div>
+                    ${markBtn}
+                `;
+            }
+
+            let btns = '';
+            if (currTab === 'pending' && item.status === 'done') {
+                btns = `<button class="btn btn-primary" onclick="act(${item.id}, 'approve')">通過</button>
+                        <button class="btn btn-warning" onclick="act(${item.id}, 'reject')">駁回</button>
+                        <button class="btn btn-danger" onclick="act(${item.id}, 'delete')">🗑</button>`;
+            } else if (currTab === 'processed') {
+                btns = `<div style="display:flex; gap:4px;">
+                        <button class="btn" onclick="act(${item.id}, 'withdraw')">撤回</button>`;
+                if (item.status === 'approved') btns += `<button class="btn btn-warning" onclick="act(${item.id}, 'reject')">改駁回</button>`;
+                else btns += `<button class="btn btn-primary" onclick="act(${item.id}, 'approve')">改通過</button>`;
+                btns += `<button class="btn btn-danger" onclick="act(${item.id}, 'delete')">🗑</button></div>`;
+            } else if (currTab === 'trash') {
+                btns = `<button class="btn btn-primary" onclick="act(${item.id}, 'restore')">還原</button>
+                        <button class="btn btn-danger" onclick="if(confirm('確定刪除？')) act(${item.id}, 'permanent_delete')">刪除</button>`;
+            }
+
+            const isChecked = selectedIds.has(item.id) ? 'checked' : '';
+            const colClass = isSelectMode ? 'col-select show' : 'col-select';
+            
+            const brandColor = BRAND_COLORS[item.task] || '#64748b';
+            const taskSelectHtml = `
+                <select 
+                    onchange="updateTask(${item.id}, this.value)" 
+                    onclick="event.stopPropagation()"
+                    onfocus="isInputActive = true"
+                    onblur="isInputActive = false"
+                    style="
+                        background-color: ${brandColor}; 
+                        color: white; 
+                        border: none; 
+                        border-radius: 4px; 
+                        padding: 2px 4px; 
+                        font-size: 10px; 
+                        font-weight: 700; 
+                        cursor: pointer;
+                        outline: none;
+                        -webkit-appearance: none;
+                        -moz-appearance: none;
+                        appearance: none;
+                        text-align: center;
+                        width: auto;
+                    "
+                    title="點擊切換品牌並重新計算"
+                >
+                    <option value="LIFE" ${item.task === 'LIFE' ? 'selected' : ''} style="color:#000;background:#fff;">LIFE</option>
+                    <option value="OUTDOOR" ${item.task === 'OUTDOOR' ? 'selected' : ''} style="color:#000;background:#fff;">OUTDOOR</option>
+                    <option value="Z+" ${item.task === 'Z+' ? 'selected' : ''} style="color:#000;background:#fff;">Z+</option>
+                    <!-- [修改点 6] 列表下拉框添加主品牌选项 -->
+                    <option value="MAIN" ${item.task === 'MAIN' ? 'selected' : ''} style="color:#000;background:#fff;">MAIN</option>
+                    <!-- [新增] 列表下拉框添加牛仔品牌选项 -->
+                    <option value="JEANS" ${item.task === 'JEANS' ? 'selected' : ''} style="color:#000;background:#fff;">JEANS</option>
+                    <!-- [新增] 童装三品牌选项 -->
+                    <option value="JNR" ${item.task === 'JNR' ? 'selected' : ''} style="color:#000;background:#fff;">JNR</option>
+                    <option value="JKIDS" ${item.task === 'JKIDS' ? 'selected' : ''} style="color:#000;background:#fff;">JKIDS</option>
+                    <option value="JSPORT" ${item.task === 'JSPORT' ? 'selected' : ''} style="color:#000;background:#fff;">JSPORT</option>
+                </select>
+            `;
+
+            // [修改] 在 file-id 中移除了 ${tag}
+            return `
+                <tr>
+                    <td class="${colClass}">
+                        <input type="checkbox" class="row-checkbox" value="${item.id}" ${isChecked} onchange="toggleRowSelection(${item.id})">
+                    </td>
+                    <td>
+                        <div class="file-meta">
+                            <img class="thumb" src="${thumbUrl}" onclick="showModal('${fullUrl}')">
+                            <div>
+                                <div class="file-name" title="${item.filename}">${item.filename}</div>
+                                <div class="file-id">
+                                    ${taskSelectHtml}
+                                    ID: ${item.id} 
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${infoHtml}</td>
+                    <td>${btns}</td>
+                </tr>
+            `;
+        }).join('');        
+        if (append) {
+            tbody.insertAdjacentHTML('beforeend', html);
+        } else {
+            tbody.innerHTML = html;
+        }    }
+
+    async function act(id, action) {
+        const fd = new FormData();
+        fd.append('action', action);
+        try {
+            const res = await apiFetch(`${BASE}/action/${id}`, { method: 'POST', body: fd });
+            if (!res.ok) throw new ApiError(`操作失敗 (HTTP ${res.status})`);
+            fetchData();
+        } catch(e) { console.error(e); alert(errorText(e)); }
+    }
+
+    async function undoGlobal() {
+        try {
+            const res = await apiFetch(`${BASE}/undo_global`, { method: 'POST' });
+            const d = await res.json();
+            if (d.status === 'empty') alert('無操作可撤回');
+            else fetchData();
+        } catch(e) { console.error(e); alert(errorText(e)); }
+    }
+    
+    const drop = document.getElementById('drop-area');
+    const inp = document.getElementById('file-input');
+    drop.onclick = () => inp.click();
+    inp.onchange = e => {
+        const files = e.target.files;
+        upload(files);
+        e.target.value = ''; 
+    };
+    drop.ondragover = e => { e.preventDefault(); drop.style.borderColor = 'var(--accent-color)'; drop.style.backgroundColor = '#f0f9ff'; };
+    drop.ondragleave = () => { drop.style.borderColor = '#cbd5e1'; drop.style.backgroundColor = '#fff'; };
+    drop.ondrop = e => { e.preventDefault(); drop.style.borderColor = '#cbd5e1'; drop.style.backgroundColor = '#fff'; upload(e.dataTransfer.files); };
+
+    async function upload(files) {
+        if (!files.length) return;
+        const fd = new FormData();
+        for (let f of files) fd.append('files', f);
+        
+        const task = currentUploadBrand;
+        fd.append('task', task);
+
+        const statusEl = document.getElementById('status-msg');
+        statusEl.innerText = '正在上傳...';
+        try {
+            const res = await apiFetch(`${BASE}/api/upload`, { method: 'POST', body: fd });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.status !== 'ok') throw new Error(data.msg || '伺服器返回失敗');
+            statusEl.innerText = '上傳完成';
+            setTimeout(() => { if (statusEl.innerText === '上傳完成') statusEl.innerText = ''; }, 2000);
+            if (currTab !== 'pending') switchTab('pending');
+            else fetchData();
+        } catch (err) {
+            // 失敗信息常駐顯示,不自動消失——上傳失敗絕不能偽裝成成功
+            console.error('Upload failed:', err);
+            statusEl.innerText = `上傳失敗: ${err.message}`;
+        }
+    }
+
+    function showModal(src) {
+        document.getElementById('modal-img').src = src;
+        document.getElementById('modal').style.display = 'flex';
+    }
+</script>
+</body>
+</html>
