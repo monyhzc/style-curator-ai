@@ -177,8 +177,8 @@ echo -e "• 等待服務初始化 (10秒)..."
 sleep 10
 
 # 測試健康狀態
-if curl -s http://127.0.0.1:11451/api/thresholds > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ HTTP API 服務啟動成功！監聽端口: 11451${NC}"
+if curl --noproxy "*" -s http://127.0.0.1:11451/api/thresholds > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ HTTP API 與視覺化工作台服務啟動成功！監聽端口: 11451${NC}"
 else
     echo -e "${YELLOW}⚠️ 服務正在載入權重，您可以稍後執行 ./service.sh status 查看${NC}"
 fi
@@ -199,6 +199,10 @@ score = engine.predict([(dummy, 'LIFE')])[0]
 print(f'✅ 推理成功！測試樣例打分: {score:.4f} | 引擎已在 INT4 模式下穩定就緒！')
 " || true
 
+# 獲取本機對外 IP 與登入 Token
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+CURRENT_TOKEN=$(grep -E "^APP_AUTH_TOKEN=" "$DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r' || echo "jw_style_audit_prod_token_2026")
+
 # 若以 sudo 執行，將所有新生成檔案（權重、配置、日誌）歸屬權還給真實用戶
 if [ "$IS_SUDO" = true ] && [ -n "$REAL_USER" ]; then
     chown -R "$REAL_USER:$REAL_USER" "$DIR" 2>/dev/null || true
@@ -206,10 +210,14 @@ fi
 
 echo -e "\n${GREEN}==================================================================${NC}"
 echo -e "${GREEN}🎉 恭喜！Style Curator AI 已全自動完成一鍵部署並以 INT4 運行！${NC}"
-echo -e "${GREEN}• 服務端口: http://127.0.0.1:11451${NC}"
-echo -e "${GREEN}• 顯存佔用: 峰值顯存僅約 8.59 GB (完全適配 8G/12G/16G 顯卡)${NC}"
-echo -e "${GREEN}• 常用維運命令:${NC}"
-echo -e "    ./service.sh status   # 檢查運行狀態"
+echo -e "${CYAN}• 本地存取位址:  ${GREEN}http://127.0.0.1:11451/${NC}"
+echo -e "${CYAN}• 外部/局域網網址: ${GREEN}http://${LOCAL_IP}:11451/${NC}"
+echo -e "${CYAN}• 網頁登入密碼:  ${YELLOW}${CURRENT_TOKEN}${NC} (可在 .env 中修改 APP_AUTH_TOKEN)"
+echo -e "${CYAN}• 顯存佔用:      ${GREEN}峰值顯存僅約 8.59 GB (適配 8G/12G/16G/24G+ 顯卡)${NC}"
+echo -e "\n${BLUE}🛠️ 常用操作命令:${NC}"
+echo -e "    bash check.sh         # 一鍵執行 16 項全鏈路功能驗收自檢"
+echo -e "    ./service.sh status   # 檢查服務運行狀態與端口"
+echo -e "    ./service.sh logs     # 實時查看後台運維日誌"
 echo -e "    ./service.sh restart  # 重啟服務"
 echo -e "    ./update.sh           # 未來一鍵熱更新代碼與最新權重"
 echo -e "${GREEN}==================================================================${NC}"

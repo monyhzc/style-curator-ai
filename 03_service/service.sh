@@ -65,10 +65,25 @@ case "$1" in
 
   status)
     if [ -f "$PID_FILE" ] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
-      echo "🟢 服务运行正常 (PID: $(cat "$PID_FILE")，端口: $PORT)"
-      netstat -tulpn 2>/dev/null | grep ":$PORT " || ss -tulpn 2>/dev/null | grep ":$PORT " || true
+      PID=$(cat "$PID_FILE")
+      echo "🟢 服務運行正常 (PID: $PID，端口: $PORT)"
+      if command -v ss &>/dev/null; then
+        ss -tulpn 2>/dev/null | grep ":$PORT " || true
+      elif command -v netstat &>/dev/null; then
+        netstat -tulpn 2>/dev/null | grep ":$PORT " || true
+      fi
+      LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+      echo "👉 Web 審圖工作台: http://${LOCAL_IP}:${PORT}/"
     else
-      echo "⚪ 服务未运行。"
+      echo "⚪ 服務未運行。"
+    fi
+    ;;
+
+  logs)
+    if [ -f "$LOG_FILE" ]; then
+      tail -f -n 50 "$LOG_FILE"
+    else
+      echo "⚠️ 暫無日誌檔案: $LOG_FILE"
     fi
     ;;
 
@@ -79,7 +94,7 @@ case "$1" in
     ;;
 
   *)
-    echo "用法: $0 {start|stop|restart|status}"
+    echo "用法: $0 {start|stop|restart|status|logs}"
     exit 1
     ;;
 esac
