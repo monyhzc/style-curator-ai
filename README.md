@@ -138,9 +138,12 @@ style-curator-ai/
 │   └── calibrate_thresholds.py # 在線標定演算法核心
 │
 ├── 03_service/             # 【階段三：生產部署與 API 服務】
-│   ├── app.py              # FastAPI 生產介面 (POST /api/analyze, /batch, GET /thresholds, /calibrate)
+│   ├── app.py              # FastAPI 生產介面主入口 (整合 AI 推理、動態組批與工作台路由)
+│   ├── frontend_gate.py    # 視覺化工作台登入防護與 Session Cookie 簽名門禁中間件
+│   ├── review_routes.py    # 審圖工作台業務介面 (GET /api/results, POST /api/upload, /action/{id} 等)
+│   ├── frontend/           # 內建視覺化審圖工作台靜態頁面 (index.html, login.html)
 │   ├── service.sh          # 守護進程管理工具 (start / stop / restart / status)
-│   └── data/               # 運行時動態配置資料
+│   └── data/               # 運行時動態配置資料與圖片庫
 │       ├── thresholds.json # 8 品牌與 7 配件雙閾值設定檔 (支援秒級熱載入)
 │       └── url_allowlist.conf # SSRF 白名單設定檔 (支援動態熱重載)
 │
@@ -179,6 +182,60 @@ USE_INT4=true
 ```bash
 python3 04_client_tests/test_int4.py
 ```
+
+---
+
+## 🖥️ 視覺化審圖工作台與登入驗證 (Web UI & Security)
+
+系統後端原生內嵌了專屬的**視覺化圖像風格審核工作台**，無需單獨啟動前端伺服器或佔用額外連接埠。
+
+### 1. 登入與訪問
+- **訪問位址**：`http://<伺服器IP>:11451/`（或本地 `http://127.0.0.1:11451/`）
+- **功能特性**：
+  - **自動門禁跳轉**：未登入訪問自動 303 重定向至 `/login`；登入後下發 HMAC-SHA256 簽名 Session Cookie（有效期限 8 小時）；
+  - **圖片批量上傳**：支援多圖拖曳上傳，後端自動調用 Qwen3.5-9B 與風格 LoRA 進行即時審圖打分，並生成縮略圖；
+  - **三檔分流覆核**：支援依品牌、依契合度等級（非常符合 / 中度符合 / 不符合）進行多維篩選與分頁排序；
+  - **一鍵審核操作**：支援單張與批量「通過」、「駁回」、「刪除」、「撤銷」及「標記模型誤判」。
+
+---
+
+## ⚙️ 環境變數設定與登入密碼修改指南 (.env)
+
+專案根目錄的 `.env` 檔案集中管控系統的核心運行參數：
+
+### 1. 核心環境變數配置清單
+
+| 環境變數 | 預設範例 | 說明 |
+| :--- | :--- | :--- |
+| `APP_AUTH_TOKEN` | `jw_style_audit_prod_token_2026` | **系統統一金鑰**：既是外部 API 呼叫的 Bearer Token，也是**網頁工作台的登入密碼** |
+| `PORT` | `11451` | 後台服務監聽連接埠 |
+| `HOST` | `0.0.0.0` | 監聽主機位址（`0.0.0.0` 允許區域網路與外部 IP 訪問） |
+| `USE_INT4` | `false` | 是否啟用 INT4 NF4 雙重量化（顯存有限顯卡設為 `true`，顯存降至 <= 8.59GB） |
+| `PYTHON_EXEC` | （自動探測） | 指定特定的 Python 解譯器路徑（例如直接指定 Conda 虛擬環境路徑） |
+| `PATCH_DIR` | `./patch` | 模型增量 LoRA 權重與標量分類頭存放目錄 |
+| `ALLOWLIST_PATH`| `03_service/data/url_allowlist.conf` | SSRF 網址防護白名單路徑 |
+| `THRESHOLDS_PATH` | `03_service/data/thresholds.json` | 8 品牌與 7 配件三檔雙閾值設定檔路徑 |
+
+### 2. 如何修改網頁登入密碼 / API Token？
+
+系統遵循「密碼與 API 金鑰單一信任來源」原則，**網頁登入密碼直接由 `APP_AUTH_TOKEN` 決定**，無需單獨維護複雜的帳號資料庫。
+
+#### 修改步驟：
+1. **編輯 `.env` 設定檔**：
+   ```bash
+   nano .env  # 或 vim .env
+   ```
+2. **將 `APP_AUTH_TOKEN` 修改為您期望的新密碼**（例如改為您的自訂強密碼）：
+   ```env
+   APP_AUTH_TOKEN=MySecretPassword2026!
+   ```
+3. **重啟後台服務生效**：
+   ```bash
+   ./service.sh restart
+   ```
+4. **驗證生效**：
+   - 瀏覽器打開 `http://<伺服器IP>:11451/login`，使用新密碼即可登入。
+   - 外部 API 客戶端呼叫時，在 Header 中帶上 `Authorization: Bearer MySecretPassword2026!` 即可完成認證。
 
 ---
 
