@@ -8,6 +8,7 @@ smoke_test.py - 生产服务全链路自动化冒烟自检工具
   python smoke_test.py --url http://127.0.0.1:11451 --token your_token
 """
 
+import os
 import sys
 import time
 import argparse
