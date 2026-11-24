@@ -8,11 +8,23 @@ ROOT_DIR="$(cd "$DIR/.." && pwd)"
 PID_FILE="$DIR/service.pid"
 LOG_FILE="$DIR/service.log"
 
-# 优先加载根目录或当前目录的 .env
+# 優先加載根目錄或當前目錄的 .env (健壯解析行內註釋與引號)
+load_env_safe() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  while IFS='=' read -r key val || [ -n "$key" ]; do
+    [[ "$key" =~ ^[[:space:]]*# ]] && continue
+    [ -z "$key" ] && continue
+    key=$(echo "$key" | tr -d ' ')
+    val=$(echo "$val" | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    export "$key=$val" 2>/dev/null || true
+  done < "$f"
+}
+
 if [ -f "$ROOT_DIR/.env" ]; then
-  export $(grep -v '^#' "$ROOT_DIR/.env" | xargs)
+  load_env_safe "$ROOT_DIR/.env"
 elif [ -f "$DIR/.env" ]; then
-  export $(grep -v '^#' "$DIR/.env" | xargs)
+  load_env_safe "$DIR/.env"
 fi
 PORT="${PORT:-11451}"
 

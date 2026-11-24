@@ -50,9 +50,13 @@ if [ -z "$PYTHON_CMD" ]; then
         POSSIBLE_CONDA_ROOTS=(
             "$REAL_HOME/miniconda3"
             "$REAL_HOME/anaconda3"
+            "$REAL_HOME/miniforge3"
+            "$REAL_HOME/mambaforge"
             "$REAL_HOME/.conda"
             "$HOME/miniconda3"
             "$HOME/anaconda3"
+            "$HOME/miniforge3"
+            "$HOME/mambaforge"
             "/opt/conda"
             "/usr/local/miniconda3"
             "/usr/local/anaconda3"
