@@ -99,8 +99,10 @@ export -n http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 # 智能依賴檢測：若核心套件已全部安裝，直接跳過重複下載與安裝
 MISSING_PKGS=$("$PYTHON_CMD" -c '
 import importlib.util
-reqs = ["torch", "transformers", "peft", "modelscope", "bitsandbytes", "accelerate", "fastapi", "uvicorn", "PIL"]
+reqs = ["torch", "transformers", "peft", "modelscope", "bitsandbytes", "accelerate", "fastapi", "uvicorn", "PIL", "dotenv", "requests", "pydantic"]
 missing = [p for p in reqs if not importlib.util.find_spec(p)]
+if not (importlib.util.find_spec("python_multipart") or importlib.util.find_spec("multipart")):
+    missing.append("python-multipart")
 print(",".join(missing))
 ' 2>/dev/null || echo "ALL_MISSING")
 
@@ -170,10 +172,36 @@ fi
 MERGED_DIR="$DIR/weights/merged"
 echo -e "\n${BLUE}⏳ [步驟 4/6] 拼接模型：物理融合基座與 LoRA 權重...${NC}"
 
-if [ -f "$MERGED_DIR/config.json" ] || [ -f "$MERGED_DIR/model.safetensors.index.json" ] || [ -f "$MERGED_DIR/model-00001-of-00005.safetensors" ]; then
-    echo -e "✓ ${GREEN}融合模型已存在於 $MERGED_DIR，跳過重複融合。${NC}"
+MERGED_VALID=$("$PYTHON_CMD" -c '
+import json, sys
+from pathlib import Path
+d = Path(sys.argv[1])
+if not (d / "config.json").is_file():
+    print("MISSING")
+    sys.exit(0)
+if (d / "model.safetensors").is_file():
+    print("OK")
+    sys.exit(0)
+idx = d / "model.safetensors.index.json"
+if idx.is_file():
+    try:
+        shards = set(json.loads(idx.read_text(encoding="utf-8")).get("weight_map", {}).values())
+        if shards and all((d / s).is_file() for s in shards):
+            print("OK")
+            sys.exit(0)
+    except Exception:
+        pass
+print("INCOMPLETE")
+' "$MERGED_DIR" 2>/dev/null || echo "MISSING")
+
+if [ "$MERGED_VALID" = "OK" ]; then
+    echo -e "✓ ${GREEN}融合模型已完整存在於 $MERGED_DIR，跳過重複融合。${NC}"
 else
-    echo -e "• 執行物理疊加 (merge_and_unload)，生成獨立單體模型..."
+    if [ "$MERGED_VALID" = "INCOMPLETE" ]; then
+        echo -e "${YELLOW}⚠️ 檢測到 $MERGED_DIR 權重不完整 (缺少 safetensors 權重檔)，正在重新執行物理融合...${NC}"
+    else
+        echo -e "• 執行物理疊加 (merge_and_unload)，生成獨立單體模型..."
+    fi
     "$PYTHON_CMD" "$DIR/02_model/merge.py" \
         --base "$BASE_WEIGHTS_DIR" \
         --patch "$DIR/patch" \
@@ -218,11 +246,13 @@ else
     echo "USE_INT4=true" >> "$ENV_FILE"
 fi
 
-# 確保 BASE_MODEL 指向融合模型 (若存在) 或基座模型
-if [ -d "$MERGED_DIR" ] && [ -f "$MERGED_DIR/config.json" ]; then
+# 確保 BASE_MODEL 指向融合模型 (若完整存在) 或基座模型
+if [ -d "$MERGED_DIR" ] && ( [ -f "$MERGED_DIR/model.safetensors" ] || [ -f "$MERGED_DIR/model.safetensors.index.json" ] ); then
     TARGET_BASE="./weights/merged"
+    SMOKE_BASE="$MERGED_DIR"
 else
     TARGET_BASE="./weights/Qwen3.5-9B"
+    SMOKE_BASE="$BASE_WEIGHTS_DIR"
 fi
 
 if grep -q "^BASE_MODEL=" "$ENV_FILE"; then
@@ -259,7 +289,7 @@ from core import StyleEngine
 from PIL import Image
 
 print('• 正在測試 INT4 載入與單圖打分...')
-engine = StyleEngine.get_instance(base_model='$MERGED_DIR', load_in_4bit=True)
+engine = StyleEngine.get_instance(base_model='$SMOKE_BASE', load_in_4bit=True)
 dummy = Image.new('RGB', (224, 224), color=(200, 100, 50))
 score = engine.predict([(dummy, 'LIFE')])[0]
 print(f'✅ 推理成功！測試樣例打分: {score:.4f} | 引擎已在 INT4 模式下穩定就緒！')
