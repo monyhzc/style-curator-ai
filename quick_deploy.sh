@@ -206,6 +206,7 @@ else
         --base "$BASE_WEIGHTS_DIR" \
         --patch "$DIR/patch" \
         --out "$MERGED_DIR"
+    MERGED_VALID="OK"
     echo -e "✓ ${GREEN}模型物理融合完成。${NC}"
 fi
 
@@ -247,7 +248,7 @@ else
 fi
 
 # 確保 BASE_MODEL 指向融合模型 (若完整存在) 或基座模型
-if [ -d "$MERGED_DIR" ] && ( [ -f "$MERGED_DIR/model.safetensors" ] || [ -f "$MERGED_DIR/model.safetensors.index.json" ] ); then
+if [ "$MERGED_VALID" = "OK" ]; then
     TARGET_BASE="./weights/merged"
     SMOKE_BASE="$MERGED_DIR"
 else
