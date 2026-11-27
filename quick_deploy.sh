@@ -96,23 +96,23 @@ fi
 PIP_MIRROR="https://pypi.tuna.tsinghua.edu.cn/simple"
 export -n http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 
-# 智能依賴檢測：若核心套件已全部安裝，直接跳過重複下載與安裝
-MISSING_PKGS=$("$PYTHON_CMD" -c '
-import importlib.util
-reqs = ["torch", "transformers", "peft", "modelscope", "bitsandbytes", "accelerate", "fastapi", "uvicorn", "PIL", "dotenv", "requests", "pydantic"]
-missing = [p for p in reqs if not importlib.util.find_spec(p)]
-if not (importlib.util.find_spec("python_multipart") or importlib.util.find_spec("multipart")):
-    missing.append("python-multipart")
-print(",".join(missing))
-' 2>/dev/null || echo "ALL_MISSING")
-
-if [ -z "$MISSING_PKGS" ]; then
-    echo -e "✓ ${GREEN}核心環境依賴已安裝就緒 (PyTorch, Transformers, ModelScope, BitsAndBytes 等)，跳過重複安裝。${NC}"
+# 逐項依賴單元測試與按需即時補裝
+if "$PYTHON_CMD" "$DIR/01_environment/check_deps.py"; then
+    # 若已有 NVIDIA GPU，額外驗證 PyTorch CUDA 版本是否適配現代顯卡 (Hopper sm_90 需 CUDA 12+)
+    if command -v nvidia-smi &> /dev/null; then
+        TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
+        if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
+            echo -e "• 正在為現代 GPU (如 H20 Hopper) 升級適配 CUDA 12 的 PyTorch..."
+            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
+            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision || true
+        fi
+    fi
+    echo -e "✓ ${GREEN}全部核心依賴單元測試通過，跳過重複安裝。${NC}"
 else
-    echo -e "• 檢測到缺失套件 [${MISSING_PKGS}]，正在快速安裝核心依賴..."
+    MISSING_SPECS=$("$PYTHON_CMD" "$DIR/01_environment/check_deps.py" --list-missing || true)
+    echo -e "• 正在即時補裝缺失或異常依賴: ${YELLOW}${MISSING_SPECS}${NC} ..."
     $PIP_CMD install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
 
-    # 針對 NVIDIA H20 / Ada / Hopper 架構顯卡，驗證或安裝適配 CUDA 12 的 PyTorch (Hopper sm_90 需 CUDA 12+)
     if command -v nvidia-smi &> /dev/null; then
         TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
         if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
@@ -122,8 +122,13 @@ else
         fi
     fi
 
-    $PIP_CMD install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
-    echo -e "✓ ${GREEN}核心依賴安裝完成。${NC}"
+    if [ -n "$MISSING_SPECS" ]; then
+        $PIP_CMD install -i "$PIP_MIRROR" $MISSING_SPECS
+    else
+        $PIP_CMD install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
+    fi
+    echo -e "• 補裝完成，正在複檢所有依賴單元測試..."
+    "$PYTHON_CMD" "$DIR/01_environment/check_deps.py"
 fi
 
 # ------------------------------------------------------------------------------
