@@ -1,9 +1,10 @@
 # Style Curator AI (真維斯服裝與配件選款/風格審核大模型)
 
 [![GitHub Release](https://img.shields.io/github/v/release/monyhzc/style-curator-ai?color=blue&label=%E7%89%88%E6%9C%AC)](https://github.com/monyhzc/style-curator-ai/releases)
-[![Python Version](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.14%2B-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![CUDA](https://img.shields.io/badge/CUDA-11.8%20%7C%2012.1%2B-orange.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![CUDA](https://img.shields.io/badge/CUDA-13.2-orange.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.14.1%2Bcu130-red.svg)](https://pytorch.org/)
 [![INT4 NF4](https://img.shields.io/badge/Quantization-INT4%20NF4%20(8.5GB)-purple.svg)](https://github.com/TimDettmers/bitsandbytes)
 
 基於 **Qwen3.5-9B 多模態基座 + Vision LoRA 視覺解凍微調 + 4096 標量分類頭** 的風格智慧審核與自動選款系統。  
@@ -32,7 +33,7 @@ bash quick_deploy.sh
 ### 🤖 一鍵部署腳本自動執行的 6 大工序：
 
 ```text
-[步驟 1/6] 系統環境自檢 ──> 智能檢測依賴 (已安裝則秒級跳過)，未就緒時配置清華 PyPI 高速源秒級安裝
+[步驟 1/6] 系統環境自檢 ──> 智能檢測依賴 (已安裝則秒級跳過)，未就緒時配置 Python 3.14 / CUDA 13.2 / PyTorch 2.14.1+cu130 與清華 PyPI 高速源秒級安裝
 [步驟 2/6] 基座模型獲取 ──> 檢測 weights/ 權重 (已存在則跳過)，缺失時透過阿里魔搭 CDN 極速下載
 [步驟 3/6] 拉取 Release ──> 檢測 patch/ 增量補丁 (已存在則跳過)，缺失時查詢 GitHub API 自動拉取最新附件
 [步驟 4/6] 拼接物理模型 ──> 檢測 weights/merged (已存在則跳過)，缺失時自動呼叫 merge.py 執行物理疊加

@@ -28,6 +28,26 @@ elif [ -f "$DIR/.env" ]; then
 fi
 PORT="${PORT:-11451}"
 
+# .env 中的相對路徑均以專案根目錄為基準，但服務會在 03_service 目錄下啟動，
+# 因此統一轉換為絕對路徑，避免找不到 weights/patch/data 等資源
+resolve_env_path() {
+  local name="$1"
+  local val="${!name}"
+  [ -z "$val" ] && return 0
+  case "$val" in
+    /*|~*|http://*|https://*) return 0 ;;          # 絕對路徑 / 遠端位址保持原樣
+    ./*|../*) export "$name=$ROOT_DIR/${val#./}"; return 0 ;;
+  esac
+  # 非 ./ 開頭的相對路徑：僅在專案根目錄下確實存在時才改寫 (避免破壞 HF repo id)
+  [ -e "$ROOT_DIR/$val" ] && export "$name=$ROOT_DIR/$val"
+  return 0
+}
+
+resolve_env_path BASE_MODEL
+resolve_env_path PATCH_DIR
+resolve_env_path ALLOWLIST_PATH
+resolve_env_path THRESHOLDS_PATH
+
 # 智能环境解析器 (支持普通用户、sudo 及任意外部 shell 无缝识别 style_curator 隔离环境)
 if [ -f "$ROOT_DIR/01_environment/env_resolver.sh" ]; then
   source "$ROOT_DIR/01_environment/env_resolver.sh"
@@ -46,6 +66,7 @@ case "$1" in
     echo "🚀 正在启动 Style Curator AI 生产服务..."
     echo "• 解释器: $PYTHON_CMD"
     echo "• 监听端口: $PORT"
+    echo "• 模型路径: ${BASE_MODEL:-<自动探测>}"
     echo "• 运行日志: $LOG_FILE"
     cd "$DIR"
     nohup "$PYTHON_CMD" -u app.py < /dev/null > "$LOG_FILE" 2>&1 &
@@ -57,7 +78,10 @@ case "$1" in
       echo "✅ 服务已成功在后台启动 (PID: $PID)"
       echo "👉 查看实时日志: tail -f $LOG_FILE"
     else
+      rm -f "$PID_FILE"
       echo "❌ 启动失败，请检查日志: cat $LOG_FILE"
+      echo "──── 日志最后 20 行 ────"
+      tail -n 20 "$LOG_FILE" 2>/dev/null
       exit 1
     fi
     ;;

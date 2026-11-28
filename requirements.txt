@@ -1,6 +1,15 @@
-torch>=2.0.0
-transformers>=4.45.0
-peft>=0.10.0
+# ==============================================================================
+# Style Curator AI 核心依賴清單 (固定版本基線)
+# 環境: Python 3.14 / CUDA 13.2 / PyTorch 2.14.1+cu130
+#
+# PyTorch 需透過 CUDA 13.0 官方索引安裝 (cu130 執行時相容 CUDA 13.2 驅動):
+#   pip install torch==2.14.1 torchvision --index-url https://download.pytorch.org/whl/cu130
+# ==============================================================================
+torch==2.14.1
+transformers==5.19.0
+peft==0.21.2
+bitsandbytes==0.50.2
+accelerate>=1.0.0
 fastapi>=0.110.0
 uvicorn>=0.28.0
 python-multipart>=0.0.9

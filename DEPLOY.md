@@ -7,9 +7,9 @@
 ## 📋 架构与前置要求
 
 - **操作系统**：Linux (Ubuntu 20.04/22.04、Debian 11+、CentOS 7/8、Alibaba Cloud Linux)
-- **Python 环境**：Python 3.10+ (强烈推荐使用独立的 Conda 隔离环境，如 `style_curator`，避免污染或影响服务器上的其他应用)
+- **Python 环境**：Python 3.14+ (强烈推荐使用独立的 Conda 隔离环境，如 `style_curator`，避免污染或影响服务器上的其他应用)
 - **硬件配置**：
-  - 推理 GPU：NVIDIA 显卡（显存 $\ge 16\text{GB}$，如 NVIDIA H20、H100、RTX 4090、A10、L20、V100、A800 等；建议 CUDA 12.1+ / 12.4+）
+  - 推理 GPU：NVIDIA 显卡（显存 $\ge 16\text{GB}$，如 NVIDIA H20、H100、RTX 4090、A10、L20、V100、A800 等；建议 CUDA 13.2 驱动，PyTorch 使用 cu130 构建版）
   - 磁盘空间：空余空间 $\ge 30\text{GB}$
 
 ---
@@ -27,7 +27,7 @@
    ```bash
    bash quick_deploy.sh
    ```
-   > 自动隔离创建 `style_curator` Conda 环境，安装 PyTorch (CUDA 12.4 现代 GPU 架构构建版)、Transformers、PEFT、FastAPI 及魔搭 ModelScope。
+   > 自动隔离创建 `style_curator` Conda 环境 (Python 3.14)，安装 PyTorch 2.14.1+cu130 (CUDA 13.2 现代 GPU 架构构建版)、Transformers 5.19.0、PEFT 0.21.2、BitsAndBytes 0.50.2、FastAPI 及魔搭 ModelScope。
 
 2. **通过魔搭社区 (ModelScope) 高速下载基座模型**：
    ```bash

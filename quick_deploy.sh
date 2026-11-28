@@ -5,7 +5,7 @@
 # 功能說明:
 #   1. 互動式確認/自訂連接埠 (PORT) 與登入密碼 (APP_AUTH_TOKEN)，支援留空預設
 #   2. 智慧跳過機制：依賴、基座、增量權重、融合模型若已就緒則直接跳過並高亮顯示
-#   3. 自動檢查並配置 Python 3.10+ / GPU 驅動與國內清華 PyPI 高速源依賴
+#   3. 自動檢查並配置 Python 3.14+ / CUDA 13.2 / PyTorch 2.14.1+cu130 與國內清華 PyPI 高速源依賴
 #   4. 自動透過阿里魔搭 (ModelScope) 國內高速 CDN 下載 Qwen3.5-9B 原生基座
 #   5. 自動拉取 GitHub Releases 最新版 patch.tar.gz 權重補丁並解壓校驗
 #   6. 自動執行模型物理融合 (merge_and_unload) 生成獨立單體模型
@@ -34,6 +34,16 @@ echo -e "${CYAN}================================================================
 # ------------------------------------------------------------------------------
 DEFAULT_PORT="11451"
 DEFAULT_TOKEN="jw_style_audit_prod_token_2026"
+
+# 統一版本基線 (Python 3.14 / CUDA 13.2 / PyTorch 2.14.1+cu130)
+PYTHON_VERSION="3.14"
+CUDA_VERSION="13.2"
+TORCH_VERSION="2.14.1"
+TORCH_CUDA_TAG="cu130"
+TORCH_INDEX_URL="https://download.pytorch.org/whl/${TORCH_CUDA_TAG}"
+TRANSFORMERS_VERSION="5.19.0"
+BITSANDBYTES_VERSION="0.50.2"
+PEFT_VERSION="0.21.2"
 
 # 若本地已存在 .env 設定檔，優先提取現有配置作為預設提示
 if [ -f "$DIR/.env" ]; then
@@ -70,12 +80,17 @@ if [ "$IS_SUDO" = true ]; then
 fi
 
 if [ -z "$PYTHON_CMD" ] || ! command -v "$PYTHON_CMD" &> /dev/null; then
-    echo -e "${RED}❌ 未檢測到 Python 直譯器，請先安裝 Python 3.10+ 或 Miniconda${NC}"
+    echo -e "${RED}❌ 未檢測到 Python 直譯器，請先安裝 Python ${PYTHON_VERSION}+ 或 Miniconda${NC}"
     exit 1
 fi
 
 PY_VER=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "未知")
 echo -e "• Python 直譯器: ${GREEN}$($PYTHON_CMD -c 'import sys; print(sys.executable)' 2>/dev/null || echo "$PYTHON_CMD")${NC} (版本: ${PY_VER})"
+
+if ! "$PYTHON_CMD" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)' 2>/dev/null; then
+    echo -e "${YELLOW}⚠️ 檢測到 Python ${PY_VER}，本專案基線為 Python ${PYTHON_VERSION}。${NC}"
+    echo -e "${YELLOW}   建議先執行: bash 01_environment/create_conda_env.sh 建立 Python ${PYTHON_VERSION} 隔離環境${NC}"
+fi
 
 if [ -z "$PIP_CMD" ]; then
     echo -e "${RED}❌ 未找到 pip 工具包！${NC}"
@@ -89,6 +104,16 @@ if command -v nvidia-smi &> /dev/null; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
     GPU_MEM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader | head -n 1)
     echo -e "• GPU 檢測: ${GREEN}${GPU_NAME} (顯存: ${GPU_MEM})${NC}"
+
+    DRIVER_VER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n 1 | tr -d '[:space:]')
+    if [ -n "$DRIVER_VER" ]; then
+        DRIVER_MAJOR="${DRIVER_VER%%.*}"
+        if [ "$DRIVER_MAJOR" -lt 580 ] 2>/dev/null; then
+            echo -e "${YELLOW}⚠️ 當前 NVIDIA 驅動 ${DRIVER_VER} 低於 CUDA 13.x 最低要求 (>= 580)，請先升級驅動 (CUDA ${CUDA_VERSION} 建議 590+)${NC}"
+        else
+            echo -e "• CUDA 驅動: ${GREEN}${DRIVER_VER} (支援 CUDA ${CUDA_VERSION} / PyTorch ${TORCH_VERSION}+${TORCH_CUDA_TAG})${NC}"
+        fi
+    fi
 else
     echo -e "${YELLOW}⚠️ 未檢測到 NVIDIA GPU 驅動，INT4 加速需要 NVIDIA CUDA 顯卡${NC}"
 fi
@@ -96,39 +121,76 @@ fi
 PIP_MIRROR="https://pypi.tuna.tsinghua.edu.cn/simple"
 export -n http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 
-# 逐項依賴單元測試與按需即時補裝
-if "$PYTHON_CMD" "$DIR/01_environment/check_deps.py"; then
-    # 若已有 NVIDIA GPU，額外驗證 PyTorch CUDA 版本是否適配現代顯卡 (Hopper sm_90 需 CUDA 12+)
-    if command -v nvidia-smi &> /dev/null; then
-        TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
-        if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
-            echo -e "• 正在為現代 GPU (如 H20 Hopper) 升級適配 CUDA 12 的 PyTorch..."
-            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
-            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision || true
-        fi
+# 智能依賴檢測：核心套件齊全且版本符合基線時，直接跳過重複下載與安裝
+MISSING_PKGS=$("$PYTHON_CMD" -c '
+import importlib.util
+reqs = ["torch", "transformers", "peft", "modelscope", "bitsandbytes", "accelerate", "fastapi", "uvicorn", "PIL", "dotenv", "requests", "pydantic"]
+missing = [p for p in reqs if not importlib.util.find_spec(p)]
+if not (importlib.util.find_spec("python_multipart") or importlib.util.find_spec("multipart")):
+    missing.append("python-multipart")
+print(",".join(missing))
+' 2>/dev/null || echo "ALL_MISSING")
+
+# 版本漂移檢測：確保 PyTorch / Transformers / PEFT / BitsAndBytes 符合指定基線
+VERSION_DRIFT=$("$PYTHON_CMD" -c '
+import importlib.metadata as m
+expected = {"torch": "2.14.1", "transformers": "5.19.0", "peft": "0.21.2", "bitsandbytes": "0.50.2"}
+drift = []
+for pkg, want in expected.items():
+    try:
+        got = m.version(pkg).split("+")[0]
+    except Exception:
+        continue
+    if got != want:
+        drift.append(f"{pkg}=={got}->{want}")
+print(",".join(drift))
+' 2>/dev/null || true)
+
+# 若存在 NVIDIA GPU，額外確認目前 PyTorch 是否為 cu130 (CUDA 13.x) 構建版
+if command -v nvidia-smi &> /dev/null; then
+    TORCH_CUDA_DRIFT=$("$PYTHON_CMD" -c "
+import torch
+cuda = torch.version.cuda or '0'
+ok = tuple(int(x) for x in cuda.split('.')[:2]) >= (13, 0)
+print('' if ok else 'torch(cuda<13.0)')
+" 2>/dev/null || echo "torch(cuda<13.0)")
+    if [ -n "$TORCH_CUDA_DRIFT" ]; then
+        VERSION_DRIFT="${VERSION_DRIFT:+${VERSION_DRIFT},}${TORCH_CUDA_DRIFT}"
     fi
-    echo -e "✓ ${GREEN}全部核心依賴單元測試通過，跳過重複安裝。${NC}"
+fi
+
+if [ -z "$MISSING_PKGS" ] && [ -z "$VERSION_DRIFT" ]; then
+    echo -e "✓ ${GREEN}核心環境依賴已安裝就緒 (PyTorch ${TORCH_VERSION}+${TORCH_CUDA_TAG}, Transformers ${TRANSFORMERS_VERSION}, PEFT ${PEFT_VERSION}, BitsAndBytes ${BITSANDBYTES_VERSION})，跳過重複安裝。${NC}"
 else
-    MISSING_SPECS=$("$PYTHON_CMD" "$DIR/01_environment/check_deps.py" --list-missing || true)
-    echo -e "• 正在即時補裝缺失或異常依賴: ${YELLOW}${MISSING_SPECS}${NC} ..."
+    [ -n "$MISSING_PKGS" ] && echo -e "• 檢測到缺失套件 [${MISSING_PKGS}]，正在快速安裝核心依賴..."
+    [ -n "$VERSION_DRIFT" ] && echo -e "• 檢測到版本需升級 [${VERSION_DRIFT}]，正在對齊版本基線..."
     $PIP_CMD install -i "$PIP_MIRROR" --upgrade pip setuptools wheel > /dev/null 2>&1 || true
 
+    # 針對 NVIDIA H20 / Ada / Hopper 架構顯卡，驗證或安裝適配 CUDA 13.2 的 PyTorch (Hopper sm_90 需 CUDA 12+，此處統一使用 cu130)
     if command -v nvidia-smi &> /dev/null; then
-        TORCH_OK=$("$PYTHON_CMD" -c "import torch; print('OK' if torch.cuda.is_available() and getattr(torch.version, 'cuda', '') >= '12' else 'NEED_INSTALL')" 2>/dev/null || echo "NEED_INSTALL")
+        TORCH_OK=$("$PYTHON_CMD" -c "
+import re, torch
+ver = tuple(int(x) for x in re.findall(r'\d+', torch.__version__.split('+')[0])[:3])
+cuda = tuple(int(x) for x in re.findall(r'\d+', torch.version.cuda or '0')[:2])
+print('OK' if torch.cuda.is_available() and ver >= (2, 14, 1) and cuda >= (13, 0) else 'NEED_INSTALL')
+" 2>/dev/null || echo "NEED_INSTALL")
         if [ "$TORCH_OK" == "NEED_INSTALL" ]; then
-            echo -e "• 正在為現代 GPU (如 H20 Hopper) 配置適配 CUDA 12 的 PyTorch..."
-            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision --index-url https://download.pytorch.org/whl/cu124 || \
-            $PIP_CMD install -i "$PIP_MIRROR" torch torchvision || true
+            echo -e "• 正在為現代 GPU (如 H20 Hopper) 配置 PyTorch ${TORCH_VERSION}+${TORCH_CUDA_TAG} (CUDA ${CUDA_VERSION})..."
+            $PIP_CMD install --index-url "$TORCH_INDEX_URL" "torch==${TORCH_VERSION}" torchvision || \
+            $PIP_CMD install -i "$PIP_MIRROR" "torch==${TORCH_VERSION}" torchvision || true
         fi
     fi
 
-    if [ -n "$MISSING_SPECS" ]; then
-        $PIP_CMD install -i "$PIP_MIRROR" $MISSING_SPECS
-    else
-        $PIP_CMD install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope bitsandbytes accelerate
-    fi
-    echo -e "• 補裝完成，正在複檢所有依賴單元測試..."
-    "$PYTHON_CMD" "$DIR/01_environment/check_deps.py"
+    $PIP_CMD install -i "$PIP_MIRROR" -r "$DIR/requirements.txt" modelscope accelerate
+    echo -e "• 已安裝版本自檢:"
+    "$PYTHON_CMD" -c "
+import torch, transformers, peft, bitsandbytes
+print(f'   - PyTorch: {torch.__version__} (CUDA: {torch.version.cuda}, 可用: {torch.cuda.is_available()})')
+print(f'   - Transformers: {transformers.__version__}')
+print(f'   - PEFT: {peft.__version__}')
+print(f'   - BitsAndBytes: {bitsandbytes.__version__}')
+" 2>/dev/null || true
+    echo -e "✓ ${GREEN}核心依賴安裝完成。${NC}"
 fi
 
 # ------------------------------------------------------------------------------
@@ -211,7 +273,6 @@ else
         --base "$BASE_WEIGHTS_DIR" \
         --patch "$DIR/patch" \
         --out "$MERGED_DIR"
-    MERGED_VALID="OK"
     echo -e "✓ ${GREEN}模型物理融合完成。${NC}"
 fi
 
@@ -253,7 +314,7 @@ else
 fi
 
 # 確保 BASE_MODEL 指向融合模型 (若完整存在) 或基座模型
-if [ "$MERGED_VALID" = "OK" ]; then
+if [ -d "$MERGED_DIR" ] && ( [ -f "$MERGED_DIR/model.safetensors" ] || [ -f "$MERGED_DIR/model.safetensors.index.json" ] ); then
     TARGET_BASE="./weights/merged"
     SMOKE_BASE="$MERGED_DIR"
 else

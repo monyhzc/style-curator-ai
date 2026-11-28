@@ -35,7 +35,7 @@ def run_int4_benchmark():
         import bitsandbytes as bnb
         print(f"✓ BitsAndBytes 就绪 (版本: {bnb.__version__})")
     except ImportError:
-        print("❌ 错误: 未安装 bitsandbytes，请执行: pip install bitsandbytes")
+        print("❌ 错误: 未安装 bitsandbytes，请执行: pip install bitsandbytes==0.50.2")
         sys.exit(1)
 
     dev_name = torch.cuda.get_device_name(0)

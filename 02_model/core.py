@@ -19,10 +19,31 @@ except (ImportError, ModuleNotFoundError) as e:
     except Exception:
         import sys
         print(f"❌ [依赖错误] 导入 transformers 视觉多模态组件失败: {e}", file=sys.stderr)
-        print("💡 Qwen3.5/Qwen2.5-VL 多模态要求 transformers >= 4.45.0 (推荐 4.46.3+)", file=sys.stderr)
-        print("💡 若服务器有其他应用，强烈建议使用独立的 Conda 隔离环境: conda create -n style_curator python=3.10", file=sys.stderr)
+        print("💡 Qwen3.5/Qwen2.5-VL 多模态要求 transformers >= 5.19.0 (推荐 5.19.0)", file=sys.stderr)
+        print("💡 若服务器有其他应用，强烈建议使用独立的 Conda 隔离环境: conda create -n style_curator python=3.14", file=sys.stderr)
         raise
 from peft import PeftModel
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_local_path(p: str) -> str:
+    """將相對路徑解析為可用路徑，兼容從任意工作目錄啟動服務。
+
+    解析順序：絕對路徑 -> 當前工作目錄 -> 專案根目錄 -> 原樣返回 (可能是 HF repo id)。
+    """
+    if not p:
+        return p
+    path = Path(p).expanduser()
+    if path.is_absolute():
+        return str(path)
+    if path.exists():
+        return str(path.resolve())
+    root_candidate = PROJECT_ROOT / path
+    if root_candidate.exists():
+        return str(root_candidate)
+    return p
+
 
 # 8 大品牌专属风格调性定义
 BRAND_PROMPTS = {
@@ -243,6 +264,7 @@ class StyleEngine:
                     base_model = "./weights/Qwen3.5-9B"
                 else:
                     base_model = "Qwen/Qwen3.5-9B"
+            base_model = resolve_local_path(base_model)
             if load_in_4bit is None:
                 load_in_4bit = os.environ.get("USE_INT4", "false").lower() in ("1", "true", "yes")
             cls._instance = cls(base_model, patch_dir, load_in_4bit=load_in_4bit)
@@ -253,9 +275,15 @@ class StyleEngine:
         self.load_in_4bit = load_in_4bit
         if patch_dir is None:
             patch_dir = os.environ.get("PATCH_DIR", "./patch")
-        self.patch_dir = Path(patch_dir)
+        self.patch_dir = Path(resolve_local_path(patch_dir))
 
-        print(f"[Model] 正在加载 Qwen3.5-9B 处理器...")
+        if base_model.startswith((".", "/", "~")) and not Path(base_model).exists():
+            raise FileNotFoundError(
+                f"找不到本地模型目录: {base_model} "
+                f"(请检查 .env 中的 BASE_MODEL，或先执行 python 02_model/merge.py 生成融合权重)"
+            )
+
+        print(f"[Model] 正在加载 Qwen3.5-9B 处理器 (路径: {base_model})...")
         self.processor = AutoProcessor.from_pretrained(
             base_model, min_pixels=256 * 28 * 28, max_pixels=768 * 768
         )

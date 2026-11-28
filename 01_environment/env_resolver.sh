@@ -100,9 +100,9 @@ if [ -z "$PYTHON_CMD" ]; then
             if [ -f "$CONDA_BASE_DIR/etc/profile.d/conda.sh" ]; then
                 source "$CONDA_BASE_DIR/etc/profile.d/conda.sh"
                 if ! conda env list 2>/dev/null | grep -E "^${TARGET_ENV}[[:space:]]" &> /dev/null; then
-                    echo "• 自動為用戶 [${REAL_USER}] 建立專屬獨立隔離環境: ${TARGET_ENV} (Python 3.10)..."
-                    conda create -n "$TARGET_ENV" python=3.10 -y --override-channels -c conda-forge 2>/dev/null || \
-                    conda create -n "$TARGET_ENV" python=3.10 -y 2>/dev/null || true
+                    echo "• 自動為用戶 [${REAL_USER}] 建立專屬獨立隔離環境: ${TARGET_ENV} (Python 3.14)..."
+                    conda create -n "$TARGET_ENV" python=3.14 -y --override-channels -c conda-forge 2>/dev/null || \
+                    conda create -n "$TARGET_ENV" python=3.14 -y 2>/dev/null || true
                 fi
                 if [ -x "$CONDA_BASE_DIR/envs/$TARGET_ENV/bin/python" ]; then
                     PYTHON_CMD="$CONDA_BASE_DIR/envs/$TARGET_ENV/bin/python"
